@@ -11,15 +11,16 @@ local Reckoning_Achievements = Reckoning.Achievements
 local Private = Reckoning.Private
 
 -------------------------------------------------------------------------------
--- Frame Registration
+-- Frame Registration (Deferred to avoid taint)
 -------------------------------------------------------------------------------
 
-UIPanelWindows = UIPanelWindows or {}
-UIPanelWindows["ReckoningAchievementFrame"] = { area = "doublewide", pushable = 0, xoffset = 80, whileDead = 1 }
+-- Register frame with Blizzard UI system on first use
+local function RegisterFrameWithBlizzardUI()
+    if not UIPanelWindows["ReckoningAchievementFrame"] then
+        UIPanelWindows["ReckoningAchievementFrame"] = { area = "doublewide", pushable = 0, xoffset = 80, whileDead = 1 }
+    end
 
--- Register for ESC close
-UISpecialFrames = UISpecialFrames or {}
-do
+    -- Register for ESC close
     local found = false
     for i = 1, #UISpecialFrames do
         if UISpecialFrames[i] == "ReckoningAchievementFrame" then
@@ -28,7 +29,7 @@ do
         end
     end
     if not found then
-        UISpecialFrames[#UISpecialFrames + 1] = "ReckoningAchievementFrame"
+        tinsert(UISpecialFrames, "ReckoningAchievementFrame")
     end
 end
 
@@ -466,6 +467,9 @@ end
 -------------------------------------------------------------------------------
 
 function ReckoningAchievementFrame_Toggle()
+    -- Register with Blizzard UI system (deferred to avoid taint at load time)
+    RegisterFrameWithBlizzardUI()
+
     local frame = GetAchievementFrame()
     if not frame then
         return
