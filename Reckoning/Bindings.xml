@@ -1,0 +1,5 @@
+<Bindings>
+    <Binding name="TOGGLEACHIEVEMENT" category="ADDONS">
+        ToggleReckoningAchievementFrame()
+    </Binding>
+</Bindings>

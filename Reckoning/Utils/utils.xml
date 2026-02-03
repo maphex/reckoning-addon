@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Ui xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.blizzard.com/wow/ui/" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+..\FrameXML\UI.xsd">
+    <script file="DebugUtils.lua" />
+    <script file="DatabaseUtils.lua" />
+    <script file="CallbackUtils.lua" />
+    <script file="SettingsUtils.lua" />
+    <script file="CommsUtils.lua" />
+    <script file="UpdateUtils.lua" />
+
+    <!--
+    ============================================================
+    DEBUG COMMANDS - UNCOMMENT THE LINE BELOW FOR DEVELOPMENT
+    This enables /r complete, /r reset, /r week, etc.
+    DO NOT include in release builds!
+    ============================================================
+    -->
+    <!-- <script file="DebugCommands.lua" /> -->
+
+    <script file="CommandUtils.lua" />
+    <script file="AchievementUtils.lua" />
+    <script file="EventBridge.lua" />
+    <script file="AchievementEngine.lua" />
+    <script file="GuildSyncUtils.lua" />
+</Ui>

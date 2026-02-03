@@ -1,0 +1,19 @@
+## Interface: 20505 120000
+## Version: 0.0.2
+## Title: Reckoning
+## Author: Rasu | Larsj_02
+## DefaultState: enabled
+## IconTexture: Interface\Addons\Reckoning\Media\Textures\logo.tga
+## SavedVariables: ReckoningDB
+## SavedVariablesPerCharacter: ReckoningCharDB
+
+#Bindings.xml
+embed.xml
+
+ReckoningAchievementFrame.lua
+ReckoningAchievementFrame.xml
+
+ReckoningAchievementAlert.lua
+ReckoningAchievementAlert.xml
+
+config.lua

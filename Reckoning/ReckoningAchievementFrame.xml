@@ -1,0 +1,1722 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\..\Blizzard_SharedXML\UI.xsd">
+
+    <!-- Achievement Frame Tab Button Template -->
+    <Button name="ReckoningAchievementFrameTabButtonTemplate" virtual="true">
+        <Size x="100" y="32"/>
+        <Layers>
+            <Layer level="BACKGROUND">
+                <!-- Disabled/Selected State Textures (raised) - 59px tall -->
+                <Texture name="$parentLeftDisabled" file="Interface\AchievementFrame\UI-Achievement-Header">
+                    <Size x="21" y="59"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT">
+                            <Offset x="0" y="5"/>
+                        </Anchor>
+                    </Anchors>
+                    <TexCoords left="0.47265625" right="0.513671875" top="0.76953125" bottom="1.0"/>
+                </Texture>
+                <Texture name="$parentRightDisabled" file="Interface\AchievementFrame\UI-Achievement-Header">
+                    <Size x="18" y="59"/>
+                    <Anchors>
+                        <Anchor point="TOPRIGHT">
+                            <Offset x="0" y="5"/>
+                        </Anchor>
+                    </Anchors>
+                    <TexCoords left="0.685546875" right="0.720703125" top="0.76953125" bottom="1.0"/>
+                </Texture>
+                <Texture name="$parentMiddleDisabled" file="Interface\AchievementFrame\UI-Achievement-Header">
+                    <Anchors>
+                        <Anchor point="TOPLEFT" relativeTo="$parentLeftDisabled" relativePoint="TOPRIGHT"/>
+                        <Anchor point="BOTTOMRIGHT" relativeTo="$parentRightDisabled" relativePoint="BOTTOMLEFT"/>
+                    </Anchors>
+                    <TexCoords left="0.513671875" right="0.685546875" top="0.76953125" bottom="1.0"/>
+                </Texture>
+
+                <!-- Normal/Unselected State Textures (flat) - 42px tall -->
+                <Texture name="$parentLeft" file="Interface\AchievementFrame\UI-Achievement-Header">
+                    <Size x="21" y="42"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT"/>
+                    </Anchors>
+                    <TexCoords left="0.47265625" right="0.513671875" top="0.76953125" bottom="1.0"/>
+                </Texture>
+                <Texture name="$parentRight" file="Interface\AchievementFrame\UI-Achievement-Header">
+                    <Size x="18" y="42"/>
+                    <Anchors>
+                        <Anchor point="TOPRIGHT"/>
+                    </Anchors>
+                    <TexCoords left="0.685546875" right="0.720703125" top="0.76953125" bottom="1.0"/>
+                </Texture>
+                <Texture name="$parentMiddle" file="Interface\AchievementFrame\UI-Achievement-Header">
+                    <Anchors>
+                        <Anchor point="TOPLEFT" relativeTo="$parentLeft" relativePoint="TOPRIGHT"/>
+                        <Anchor point="BOTTOMRIGHT" relativeTo="$parentRight" relativePoint="BOTTOMLEFT"/>
+                    </Anchors>
+                    <TexCoords left="0.513671875" right="0.685546875" top="0.76953125" bottom="1.0"/>
+                </Texture>
+
+                <!-- Highlight Textures - Span full width -->
+                <Texture name="$parentLeftHighlight" file="Interface\AchievementFrame\UI-Achievement-Header" hidden="true" alphaMode="ADD">
+                    <Size x="32" y="42"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT">
+                            <Offset x="-5" y="0"/>
+                        </Anchor>
+                    </Anchors>
+                    <TexCoords left="0.720703125" right="0.783203125" top="0.76953125" bottom="1.0"/>
+                </Texture>
+                <Texture name="$parentRightHighlight" file="Interface\AchievementFrame\UI-Achievement-Header" hidden="true" alphaMode="ADD">
+                    <Size x="32" y="42"/>
+                    <Anchors>
+                        <Anchor point="TOPRIGHT">
+                            <Offset x="5" y="0"/>
+                        </Anchor>
+                    </Anchors>
+                    <TexCoords left="0.923828125" right="0.986328125" top="0.76953125" bottom="1.0"/>
+                </Texture>
+                <Texture name="$parentMiddleHighlight" file="Interface\AchievementFrame\UI-Achievement-Header" hidden="true" alphaMode="ADD">
+                    <Anchors>
+                        <Anchor point="TOPLEFT" relativeTo="$parentLeftHighlight" relativePoint="TOPRIGHT"/>
+                        <Anchor point="BOTTOMRIGHT" relativeTo="$parentRightHighlight" relativePoint="BOTTOMLEFT"/>
+                    </Anchors>
+                    <TexCoords left="0.783203125" right="0.923828125" top="0.76953125" bottom="1.0"/>
+                </Texture>
+            </Layer>
+        </Layers>
+        <Scripts>
+            <OnLoad>
+                local name = self:GetName()
+                -- Darken unselected tabs
+                _G[name.."Left"]:SetVertexColor(0.6, 0.6, 0.6)
+                _G[name.."Middle"]:SetVertexColor(0.6, 0.6, 0.6)
+                _G[name.."Right"]:SetVertexColor(0.6, 0.6, 0.6)
+                -- Store highlight references
+                self.leftHighlight = _G[name.."LeftHighlight"]
+                self.middleHighlight = _G[name.."MiddleHighlight"]
+                self.rightHighlight = _G[name.."RightHighlight"]
+                self.text = _G[name.."Text"]
+                self.isSelected = false
+            </OnLoad>
+            <OnEnter>
+                if not self.isSelected then
+                    self.leftHighlight:Show()
+                    self.middleHighlight:Show()
+                    self.rightHighlight:Show()
+                end
+            </OnEnter>
+            <OnLeave>
+                self.leftHighlight:Hide()
+                self.middleHighlight:Hide()
+                self.rightHighlight:Hide()
+            </OnLeave>
+        </Scripts>
+        <ButtonText name="$parentText">
+            <Anchors>
+                <Anchor point="CENTER" x="0" y="0"/>
+            </Anchors>
+        </ButtonText>
+        <NormalFont style="GameFontNormalSmall"/>
+        <HighlightFont style="GameFontHighlightSmall"/>
+        <DisabledFont style="GameFontDisableSmall"/>
+    </Button>
+
+    <!-- Gold border backdrop template -->
+    <Frame name="ReckoningGoldBorderBackdrop" inherits="TooltipBackdropTemplate" virtual="true">
+        <KeyValues>
+            <KeyValue key="backdropColorAlpha" value="0" type="number"/>
+            <KeyValue key="backdropBorderColor" value="ACHIEVEMENT_GOLD_BORDER_COLOR" type="global"/>
+        </KeyValues>
+        <Scripts>
+            <OnLoad function="ReckoningGoldBorderBackdrop_OnLoad"/>
+        </Scripts>
+    </Frame>
+
+    <!-- Recent Achievement Template -->
+    <Frame name="ReckoningRecentAchievementTemplate" inherits="TooltipBorderBackdropTemplate" virtual="true" enableMouse="true">
+        <Size x="100" y="48"/>
+        <Layers>
+            <Layer level="BACKGROUND">
+                <Texture parentKey="Background" file="Interface\AchievementFrame\UI-Achievement-Parchment-Horizontal">
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="3" y="-3"/>
+                        <Anchor point="BOTTOMRIGHT" x="-3" y="3"/>
+                    </Anchors>
+                    <TexCoords left="0" right="1" top="0" bottom="0.25"/>
+                </Texture>
+            </Layer>
+            <Layer level="BORDER">
+                <Texture name="$parentTitleBar" parentKey="TitleBar" file="Interface\AchievementFrame\UI-Achievement-Borders">
+                    <Size x="0" y="20"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="5" y="-5"/>
+                        <Anchor point="TOPRIGHT" x="-5" y="-5"/>
+                    </Anchors>
+                    <TexCoords left="0" right="0.9765625" top="0.66015625" bottom="0.73828125"/>
+                    <Color r="1" g="1" b="1" a="0.8"/>
+                </Texture>
+                <Texture name="$parentGlow" parentKey="Glow" file="Interface\AchievementFrame\UI-Achievement-Borders">
+                    <Size x="10" y="64"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT" relativeTo="$parentTitleBar" relativePoint="BOTTOMLEFT" x="0" y="2"/>
+                        <Anchor point="BOTTOMRIGHT" x="0" y="4"/>
+                    </Anchors>
+                    <TexCoords left="0" right="1" top="0.00390625" bottom="0.25390625"/>
+                </Texture>
+            </Layer>
+            <Layer level="ARTWORK">
+                <FontString parentKey="Title" inherits="GameFontHighlightMedium" justifyH="CENTER">
+                    <Anchors>
+                        <Anchor point="TOP" relativeTo="$parentTitleBar" relativePoint="TOP" x="0" y="0"/>
+                    </Anchors>
+                    <Size x="260" y="20"/>
+                </FontString>
+                <FontString parentKey="DateCompleted" inherits="GameFontNormalSmall" hidden="true">
+                    <Anchors>
+                        <Anchor point="TOPRIGHT" x="-63" y="-8"/>
+                    </Anchors>
+                    <Size x="100" y="14"/>
+                </FontString>
+                <FontString parentKey="Description" inherits="GameFontNormalSmall" justifyH="CENTER">
+                    <Anchors>
+                        <Anchor point="TOP" x="0" y="-30"/>
+                    </Anchors>
+                    <Size x="380" y="13"/>
+                </FontString>
+            </Layer>
+        </Layers>
+        <Frames>
+            <Frame parentKey="Icon">
+                <Size x="48" y="48"/>
+                <Anchors>
+                    <Anchor point="TOPLEFT" x="3" y="-3"/>
+                </Anchors>
+                <Layers>
+                    <Layer level="ARTWORK">
+                        <Texture parentKey="Texture" file="Interface\Icons\Spell_Misc_HellifrePVPHonorHoldFavor">
+                            <Anchors>
+                                <Anchor point="CENTER" x="0" y="3"/>
+                            </Anchors>
+                            <Size x="36" y="36"/>
+                        </Texture>
+                    </Layer>
+                    <Layer level="OVERLAY">
+                        <Texture parentKey="Frame" file="Interface\AchievementFrame\UI-Achievement-IconFrame">
+                            <Anchors>
+                                <Anchor point="CENTER" x="-1" y="2"/>
+                            </Anchors>
+                            <Size x="46" y="46"/>
+                            <TexCoords left="0" right="0.5625" top="0" bottom="0.5625"/>
+                        </Texture>
+                    </Layer>
+                </Layers>
+            </Frame>
+            <Frame parentKey="Shield">
+                <Size x="48" y="48"/>
+                <Anchors>
+                    <Anchor point="TOPRIGHT" x="-10" y="-4"/>
+                </Anchors>
+                <Layers>
+                    <Layer level="BACKGROUND">
+                        <Texture parentKey="Icon" file="Interface\AchievementFrame\UI-Achievement-Shields">
+                            <Size x="48" y="48"/>
+                            <Anchors>
+                                <Anchor point="TOPRIGHT" x="0" y="0"/>
+                            </Anchors>
+                            <TexCoords left="0" right="0.5" top="0" bottom="0.5"/>
+                        </Texture>
+                    </Layer>
+                    <Layer level="OVERLAY">
+                        <FontString parentKey="Points" inherits="GameFontNormal" justifyH="CENTER" text="0">
+                            <Anchors>
+                                <Anchor point="CENTER" x="0" y="3"/>
+                            </Anchors>
+                            <Size x="40" y="26"/>
+                        </FontString>
+                    </Layer>
+                </Layers>
+            </Frame>
+            <Frame name="$parentHighlight" parentKey="Highlight" setAllPoints="true" hidden="true" enableMouse="false">
+                <Layers>
+                    <Layer level="OVERLAY">
+                        <Texture name="$parentTopLeft" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Size x="16" y="16"/>
+                            <Anchors>
+                                <Anchor point="TOPLEFT" x="-1" y="2"/>
+                            </Anchors>
+                            <TexCoords left="0.06640625" right="0" top="0.4375" bottom="0.65625"/>
+                        </Texture>
+                        <Texture name="$parentBottomLeft" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Size x="16" y="16"/>
+                            <Anchors>
+                                <Anchor point="BOTTOMLEFT" x="-1" y="-2"/>
+                            </Anchors>
+                            <TexCoords left="0.06640625" right="0" top="0.65625" bottom="0.4375"/>
+                        </Texture>
+                        <Texture name="$parentTopRight" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Size x="16" y="16"/>
+                            <Anchors>
+                                <Anchor point="TOPRIGHT" x="1" y="2"/>
+                            </Anchors>
+                            <TexCoords left="0" right="0.06640625" top="0.4375" bottom="0.65625"/>
+                        </Texture>
+                        <Texture name="$parentBottomRight" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Size x="16" y="16"/>
+                            <Anchors>
+                                <Anchor point="BOTTOMRIGHT" x="1" y="-2"/>
+                            </Anchors>
+                            <TexCoords left="0" right="0.06640625" top="0.65625" bottom="0.4375"/>
+                        </Texture>
+                        <Texture name="$parentTop" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Anchors>
+                                <Anchor point="TOPLEFT" relativeTo="$parentTopLeft" relativePoint="TOPRIGHT"/>
+                                <Anchor point="BOTTOMRIGHT" relativeTo="$parentTopRight" relativePoint="BOTTOMLEFT"/>
+                            </Anchors>
+                            <TexCoords left="0" right="0.015" top="0.4375" bottom="0.65625"/>
+                        </Texture>
+                        <Texture name="$parentBottom" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Anchors>
+                                <Anchor point="TOPLEFT" relativeTo="$parentBottomLeft" relativePoint="TOPRIGHT"/>
+                                <Anchor point="BOTTOMRIGHT" relativeTo="$parentBottomRight" relativePoint="BOTTOMLEFT"/>
+                            </Anchors>
+                            <TexCoords left="0" right="0.015" top="0.65625" bottom="0.4375"/>
+                        </Texture>
+                        <Texture name="$parentLeft" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Anchors>
+                                <Anchor point="TOPLEFT" relativeTo="$parentTopLeft" relativePoint="BOTTOMLEFT"/>
+                                <Anchor point="BOTTOMRIGHT" relativeTo="$parentBottomLeft" relativePoint="TOPRIGHT"/>
+                            </Anchors>
+                            <TexCoords left="0.06640625" right="0" top="0.65625" bottom="0.6"/>
+                        </Texture>
+                        <Texture name="$parentRight" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Anchors>
+                                <Anchor point="TOPLEFT" relativeTo="$parentTopRight" relativePoint="BOTTOMLEFT"/>
+                                <Anchor point="BOTTOMRIGHT" relativeTo="$parentBottomRight" relativePoint="TOPRIGHT"/>
+                            </Anchors>
+                            <TexCoords left="0" right="0.06640625" top="0.65625" bottom="0.6"/>
+                        </Texture>
+                    </Layer>
+                </Layers>
+            </Frame>
+        </Frames>
+        <Scripts>
+            <OnEnter>
+                self.Highlight:Show();
+            </OnEnter>
+            <OnLeave>
+                self.Highlight:Hide();
+            </OnLeave>
+            <OnMouseDown>
+                if self.achievementId then
+                    ReckoningAchievementFrame_SelectAchievement(self.achievementId);
+                end
+            </OnMouseDown>
+        </Scripts>
+    </Frame>
+
+    <!-- Summary Category Status Bar Template -->
+    <StatusBar name="ReckoningSummaryCategoryTemplate" drawLayer="BORDER" virtual="true">
+        <Size x="218" y="21"/>
+        <Layers>
+            <Layer level="OVERLAY">
+                <FontString name="$parentLabel" inherits="GameFontNormal" text="" parentKey="label">
+                    <Anchors>
+                        <Anchor point="LEFT" x="6" y="4"/>
+                    </Anchors>
+                </FontString>
+                <FontString name="$parentText" inherits="GameFontHighlight" parentKey="text">
+                    <Size x="0" y="14"/>
+                    <Anchors>
+                        <Anchor point="RIGHT" x="-5" y="3"/>
+                    </Anchors>
+                </FontString>
+                <Texture name="$parentLeft" file="Interface\AchievementFrame\UI-Achievement-Header">
+                    <Size x="32" y="48"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="-15" y="16"/>
+                    </Anchors>
+                    <TexCoords left="0.423828125" right="0.486" top="0.56640625" bottom="0.75"/>
+                </Texture>
+                <Texture name="$parentRight" file="Interface\AchievementFrame\UI-Achievement-Header">
+                    <Size x="32" y="48"/>
+                    <Anchors>
+                        <Anchor point="TOPRIGHT" x="15" y="16"/>
+                    </Anchors>
+                    <TexCoords right="0.423828125" left="0.486" bottom="0.75" top="0.56640625"/>
+                </Texture>
+                <Texture name="$parentMiddle" file="Interface\AchievementFrame\UI-Achievement-Header">
+                    <Anchors>
+                        <Anchor point="TOPLEFT" relativeTo="$parentLeft" relativePoint="TOPRIGHT"/>
+                        <Anchor point="BOTTOMRIGHT" relativeTo="$parentRight" relativePoint="BOTTOMLEFT"/>
+                    </Anchors>
+                    <TexCoords right="0.486" left="0.889224609375" bottom="0.75" top="0.56640625"/>
+                </Texture>
+            </Layer>
+            <Layer level="BACKGROUND">
+                <Texture name="$parentFillBar" parentKey="fillBar">
+                    <Size x="0" y="15"/>
+                    <Color r="0" g="0" b="0" a="0.5"/>
+                </Texture>
+            </Layer>
+        </Layers>
+        <Frames>
+            <Button name="$parentButton" parentKey="button">
+                <Anchors>
+                    <Anchor point="TOPLEFT"/>
+                    <Anchor point="BOTTOMRIGHT"/>
+                </Anchors>
+                <Frames>
+                    <Frame name="$parentHighlight" parentKey="highlight" setAllPoints="true" hidden="true">
+                        <Layers>
+                            <Layer level="OVERLAY">
+                                <Texture name="$parentLeft" file="Interface\AchievementFrame\UI-Achievement-StatusBar-Highlight" alphaMode="ADD">
+                                    <Size x="32" y="32"/>
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" x="-7" y="8"/>
+                                    </Anchors>
+                                    <TexCoords left="0" right="1" top="0" bottom="1"/>
+                                </Texture>
+                                <Texture name="$parentRight" file="Interface\AchievementFrame\UI-Achievement-StatusBar-Highlight" alphaMode="ADD">
+                                    <Size x="32" y="32"/>
+                                    <Anchors>
+                                        <Anchor point="TOPRIGHT" x="7" y="8"/>
+                                    </Anchors>
+                                    <TexCoords right="0" left="1" top="0" bottom="1"/>
+                                </Texture>
+                                <Texture name="$parentMiddle" file="Interface\AchievementFrame\UI-Achievement-StatusBar-Highlight" alphaMode="ADD">
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" relativeTo="$parentLeft" relativePoint="TOPRIGHT"/>
+                                        <Anchor point="BOTTOMRIGHT" relativeTo="$parentRight" relativePoint="BOTTOMLEFT"/>
+                                    </Anchors>
+                                    <TexCoords right="1" left="0.5" top="0" bottom="1"/>
+                                </Texture>
+                            </Layer>
+                        </Layers>
+                    </Frame>
+                </Frames>
+                <Scripts>
+                    <OnClick function="ReckoningSummaryCategoryButton_OnClick"/>
+                    <OnEnter function="ReckoningSummaryCategoryButton_OnEnter"/>
+                    <OnLeave function="ReckoningSummaryCategoryButton_OnLeave"/>
+                </Scripts>
+            </Button>
+        </Frames>
+        <BarTexture name="$parentBar" file="Interface\PaperDollInfoFrame\UI-Character-Skills-Bar"/>
+        <BarColor r="0" g="1" b="0"/>
+    </StatusBar>
+
+    <!-- Category Button Template -->
+    <Button name="ReckoningAchievementCategoryButtonTemplate" virtual="true">
+        <Size x="158" y="24"/>
+        <Layers>
+            <Layer level="BACKGROUND">
+                <Texture name="$parentBackground" parentKey="background" file="Interface\AchievementFrame\UI-Achievement-Category-Background">
+                    <Size x="170" y="32"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT"/>
+                        <Anchor point="TOPRIGHT"/>
+                    </Anchors>
+                    <TexCoords left="0" right="0.6640625" top="0" bottom="1"/>
+                </Texture>
+            </Layer>
+            <Layer level="BORDER">
+                <!-- Selection highlight (shown when category is selected) -->
+                <Texture name="$parentHighlight" parentKey="highlight" file="Interface\AchievementFrame\UI-Achievement-Category-Highlight" alphaMode="ADD" hidden="true">
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="0" y="0"/>
+                        <Anchor point="BOTTOMRIGHT" x="-1" y="-7"/>
+                    </Anchors>
+                    <TexCoords left="0" right="0.6640625" top="0" bottom="1"/>
+                </Texture>
+            </Layer>
+            <Layer level="ARTWORK">
+                <FontString name="$parentLabel" inherits="GameFontNormalLeftBottom" wordwrap="false" parentKey="label">
+                    <Anchors>
+                        <Anchor point="BOTTOMLEFT" x="16" y="4"/>
+                        <Anchor point="TOPRIGHT" x="-8" y="-4"/>
+                    </Anchors>
+                </FontString>
+            </Layer>
+        </Layers>
+        <Scripts>
+            <OnLoad function="ReckoningAchievementCategoryButton_OnLoad"/>
+            <OnClick function="ReckoningAchievementCategoryButton_OnClick"/>
+        </Scripts>
+        <HighlightTexture file="Interface\AchievementFrame\UI-Achievement-Category-Highlight" alphaMode="ADD">
+            <Anchors>
+                <Anchor point="TOPLEFT" x="0" y="0"/>
+                <Anchor point="BOTTOMRIGHT" x="-1" y="-7"/>
+            </Anchors>
+            <TexCoords left="0" right="0.6640625" top="0" bottom="1"/>
+        </HighlightTexture>
+    </Button>
+
+    <!-- Guild Roster Row Template -->
+    <Button name="ReckoningGuildRosterButtonTemplate" virtual="true">
+        <Size x="460" y="20"/>
+    </Button>
+
+    <!-- Guild Event Button Template -->
+    <Button name="ReckoningGuildEventButtonTemplate" virtual="true" inherits="ReckoningAchievementButtonTemplate">
+        <Size x="490" y="64"/>
+    </Button>
+
+    <!-- Icon Frame Template -->
+    <Frame name="ReckoningAchievementIconFrameTemplate" virtual="true">
+        <Layers>
+            <Layer level="ARTWORK">
+                <Texture name="$parentTexture" parentKey="texture" file="Interface\Icons\INV_Misc_QuestionMark">
+                    <Size x="50" y="50"/>
+                    <Anchors>
+                        <Anchor point="CENTER" x="0" y="3"/>
+                    </Anchors>
+                </Texture>
+            </Layer>
+            <Layer level="OVERLAY">
+                <Texture name="$parentFrame" parentKey="frame" file="Interface\AchievementFrame\UI-Achievement-IconFrame">
+                    <Size x="72" y="72"/>
+                    <Anchors>
+                        <Anchor point="CENTER" x="-1" y="2"/>
+                    </Anchors>
+                    <TexCoords left="0" right="0.5625" top="0" bottom="0.5625"/>
+                </Texture>
+            </Layer>
+        </Layers>
+    </Frame>
+
+    <!-- Achievement Button Template -->
+    <Button name="ReckoningAchievementButtonTemplate" inherits="TooltipBorderBackdropTemplate" virtual="true">
+        <Size x="490" y="84"/>
+        <KeyValues>
+            <KeyValue key="collapsedHeight" value="84" type="number"/>
+            <KeyValue key="backdropBorderColor" value="ACHIEVEMENT_RED_BORDER_COLOR" type="global"/>
+            <KeyValue key="backdropBorderColorAlpha" value="0.5" type="number"/>
+        </KeyValues>
+        <Layers>
+            <Layer level="BACKGROUND">
+                <!-- Parchment background (shown when incomplete) -->
+                <Texture name="$parentBackground" parentKey="background" file="Interface\AchievementFrame\UI-Achievement-Parchment-Horizontal">
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="3" y="-3"/>
+                        <Anchor point="BOTTOMRIGHT" x="-3" y="3"/>
+                    </Anchors>
+                    <TexCoords left="0" right="1" top="0" bottom="0.25"/>
+                </Texture>
+            </Layer>
+            <Layer level="BORDER">
+                <!-- Title bar background -->
+                <Texture name="$parentTitleBar" parentKey="titleBar" file="Interface\AchievementFrame\UI-Achievement-Borders">
+                    <Size x="0" y="20"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="5" y="-4"/>
+                        <Anchor point="TOPRIGHT" x="-5" y="-4"/>
+                    </Anchors>
+                    <TexCoords left="0" right="0.9765625" top="0.66015625" bottom="0.73828125"/>
+                    <Color r="1" g="1" b="1" a=".8"/>
+                </Texture>
+                <!-- Glow below title -->
+                <Texture name="$parentGlow" parentKey="glow" file="Interface\AchievementFrame\UI-Achievement-Borders">
+                    <Size x="10" y="64"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT" relativeTo="$parentTitleBar" relativePoint="BOTTOMLEFT" x="0" y="2"/>
+                        <Anchor point="BOTTOMRIGHT" x="0" y="4"/>
+                    </Anchors>
+                    <TexCoords left="0" right="1" top="0.00390625" bottom="0.25390625"/>
+                </Texture>
+            </Layer>
+            <Layer level="OVERLAY">
+                <!-- Achievement title -->
+                <FontString name="$parentLabel" parentKey="label" inherits="GameFontHighlightMedium">
+                    <Size x="320" y="20"/>
+                    <Anchors>
+                        <Anchor point="TOP" relativeTo="$parentTitleBar" relativePoint="TOP" x="0" y="0"/>
+                    </Anchors>
+                </FontString>
+                <!-- Achievement description -->
+                <FontString name="$parentDescription" parentKey="description" inherits="GameFontHighlightSmall">
+                    <Size x="300" y="0"/>
+                    <Anchors>
+                        <Anchor point="TOP" x="0" y="-30"/>
+                    </Anchors>
+                </FontString>
+                <!-- Check mark for completed -->
+                <Texture name="$parentCheck" parentKey="check" file="Interface\Buttons\UI-CheckBox-Check" hidden="true">
+                    <Size x="20" y="16"/>
+                    <Anchors>
+                        <Anchor point="LEFT" relativeTo="$parentLabel" relativePoint="RIGHT" x="0" y="-1"/>
+                    </Anchors>
+                </Texture>
+            </Layer>
+        </Layers>
+        <Frames>
+            <!-- Icon frame -->
+            <Frame name="$parentIcon" parentKey="icon" inherits="ReckoningAchievementIconFrameTemplate">
+                <Size x="60" y="60"/>
+                <Anchors>
+                    <Anchor point="TOPLEFT" x="8" y="-9"/>
+                </Anchors>
+            </Frame>
+            <!-- Shield with points -->
+            <Button name="$parentShield" parentKey="shield">
+                <Size x="64" y="64"/>
+                <Anchors>
+                    <Anchor point="TOPRIGHT" x="-6" y="0"/>
+                </Anchors>
+                <Layers>
+                    <Layer level="BACKGROUND">
+                        <Texture name="$parentIcon" parentKey="icon" file="Interface\AchievementFrame\UI-Achievement-Shields">
+                            <Size x="66" y="64"/>
+                            <Anchors>
+                                <Anchor point="TOPRIGHT" x="0" y="-6"/>
+                            </Anchors>
+                            <TexCoords left="0" right=".5" top="0" bottom="0.5"/>
+                        </Texture>
+                    </Layer>
+                    <Layer level="OVERLAY">
+                        <FontString name="$parentPoints" parentKey="points" inherits="AchievementPointsFontSmall">
+                            <Size x="42" y="16"/>
+                            <Anchors>
+                                <Anchor point="TOPRIGHT" x="-13" y="-26"/>
+                            </Anchors>
+                        </FontString>
+                        <FontString name="$parentDateCompleted" parentKey="dateCompleted" inherits="GameFontWhiteTiny" hidden="true" justifyH="CENTER">
+                            <Size x="100" y="14"/>
+                            <Anchors>
+                                <Anchor point="TOP" relativePoint="BOTTOM" x="-2" y="6"/>
+                            </Anchors>
+                        </FontString>
+                    </Layer>
+                </Layers>
+            </Button>
+            <!-- Progress bar for partial completion -->
+            <StatusBar name="$parentProgressBar" parentKey="progressBar" hidden="true">
+                <Size x="212" y="14"/>
+                <Anchors>
+                    <Anchor point="TOP" relativeTo="$parentDescription" relativePoint="BOTTOM" x="0" y="-5"/>
+                </Anchors>
+                <Layers>
+                    <Layer level="BACKGROUND">
+                        <Texture name="$parentBG">
+                            <Anchors>
+                                <Anchor point="TOPLEFT"/>
+                                <Anchor point="BOTTOMRIGHT"/>
+                            </Anchors>
+                            <Color r="0" g="0" b="0" a=".4"/>
+                        </Texture>
+                    </Layer>
+                    <Layer level="OVERLAY">
+                        <FontString name="$parentText" parentKey="text" inherits="GameFontHighlightSmall" justifyV="TOP">
+                            <Anchors>
+                                <Anchor point="CENTER" x="0" y="0"/>
+                            </Anchors>
+                        </FontString>
+                    </Layer>
+                    <Layer level="ARTWORK">
+                        <Texture name="$parentBorderLeft" file="Interface\AchievementFrame\UI-Achievement-ProgressBar-Border">
+                            <Size x="16" y="0"/>
+                            <Anchors>
+                                <Anchor point="TOPLEFT" x="-6" y="5"/>
+                                <Anchor point="BOTTOMLEFT" x="-6" y="-5"/>
+                            </Anchors>
+                            <TexCoords left="0" right="0.0625" top="0" bottom="0.75"/>
+                        </Texture>
+                        <Texture name="$parentBorderRight" file="Interface\AchievementFrame\UI-Achievement-ProgressBar-Border">
+                            <Size x="16" y="0"/>
+                            <Anchors>
+                                <Anchor point="TOPRIGHT" x="6" y="5"/>
+                                <Anchor point="BOTTOMRIGHT" x="6" y="-5"/>
+                            </Anchors>
+                            <TexCoords left="0.812" right="0.8745" top="0" bottom="0.75"/>
+                        </Texture>
+                        <Texture name="$parentBorderCenter" file="Interface\AchievementFrame\UI-Achievement-ProgressBar-Border">
+                            <Size x="16"/>
+                            <Anchors>
+                                <Anchor point="TOPLEFT" relativeTo="$parentBorderLeft" relativePoint="TOPRIGHT"/>
+                                <Anchor point="BOTTOMRIGHT" relativeTo="$parentBorderRight" relativePoint="BOTTOMLEFT"/>
+                            </Anchors>
+                            <TexCoords left="0.0625" right="0.812" top="0" bottom="0.75"/>
+                        </Texture>
+                    </Layer>
+                </Layers>
+                <Scripts>
+                    <OnLoad>
+                        self:SetStatusBarColor(0, .6, 0, 1);
+                        self:SetMinMaxValues(0, 100);
+                        self:SetValue(0);
+                        self:GetStatusBarTexture():SetDrawLayer("BORDER");
+                    </OnLoad>
+                </Scripts>
+                <BarTexture file="Interface\TargetingFrame\UI-StatusBar"/>
+            </StatusBar>
+            <!-- Criteria list for multi-item progress -->
+            <Frame name="$parentCriteriaList" parentKey="criteriaList" hidden="true">
+                <Size x="440" y="100"/>
+                <Anchors>
+                    <Anchor point="TOPLEFT" relativeTo="$parentDescription" relativePoint="BOTTOMLEFT" x="10" y="-5"/>
+                </Anchors>
+            </Frame>
+            <!-- Highlight frame -->
+            <Frame name="$parentHighlight" parentKey="highlight" setAllPoints="true" hidden="true" enableMouse="false">
+                <Layers>
+                    <Layer level="OVERLAY">
+                        <Texture name="$parentTopLeft" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Size x="16" y="16"/>
+                            <Anchors>
+                                <Anchor point="TOPLEFT" x="-1" y="2"/>
+                            </Anchors>
+                            <TexCoords left="0.06640625" right="0" top="0.4375" bottom="0.65625"/>
+                        </Texture>
+                        <Texture name="$parentBottomLeft" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Size x="16" y="16"/>
+                            <Anchors>
+                                <Anchor point="BOTTOMLEFT" x="-1" y="-2"/>
+                            </Anchors>
+                            <TexCoords left="0.06640625" right="0" top="0.65625" bottom="0.4375"/>
+                        </Texture>
+                        <Texture name="$parentTopRight" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Size x="16" y="16"/>
+                            <Anchors>
+                                <Anchor point="TOPRIGHT" x="1" y="2"/>
+                            </Anchors>
+                            <TexCoords left="0" right="0.06640625" top="0.4375" bottom="0.65625"/>
+                        </Texture>
+                        <Texture name="$parentBottomRight" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Size x="16" y="16"/>
+                            <Anchors>
+                                <Anchor point="BOTTOMRIGHT" x="1" y="-2"/>
+                            </Anchors>
+                            <TexCoords left="0" right="0.06640625" top="0.65625" bottom="0.4375"/>
+                        </Texture>
+                        <Texture name="$parentTop" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Anchors>
+                                <Anchor point="TOPLEFT" relativeTo="$parentTopLeft" relativePoint="TOPRIGHT"/>
+                                <Anchor point="BOTTOMRIGHT" relativeTo="$parentTopRight" relativePoint="BOTTOMLEFT"/>
+                            </Anchors>
+                            <TexCoords left="0" right="0.015" top="0.4375" bottom="0.65625"/>
+                        </Texture>
+                        <Texture name="$parentBottom" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Anchors>
+                                <Anchor point="TOPLEFT" relativeTo="$parentBottomLeft" relativePoint="TOPRIGHT"/>
+                                <Anchor point="BOTTOMRIGHT" relativeTo="$parentBottomRight" relativePoint="BOTTOMLEFT"/>
+                            </Anchors>
+                            <TexCoords left="0" right="0.015" top="0.65625" bottom="0.4375"/>
+                        </Texture>
+                        <Texture name="$parentLeft" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Anchors>
+                                <Anchor point="TOPLEFT" relativeTo="$parentTopLeft" relativePoint="BOTTOMLEFT"/>
+                                <Anchor point="BOTTOMRIGHT" relativeTo="$parentBottomLeft" relativePoint="TOPRIGHT"/>
+                            </Anchors>
+                            <TexCoords left="0.06640625" right="0" top="0.65625" bottom="0.6"/>
+                        </Texture>
+                        <Texture name="$parentRight" file="Interface\PaperDollInfoFrame\UI-Character-ReputationBar-Highlight" alphaMode="ADD">
+                            <Anchors>
+                                <Anchor point="TOPLEFT" relativeTo="$parentTopRight" relativePoint="BOTTOMLEFT"/>
+                                <Anchor point="BOTTOMRIGHT" relativeTo="$parentBottomRight" relativePoint="TOPRIGHT"/>
+                            </Anchors>
+                            <TexCoords left="0" right="0.06640625" top="0.65625" bottom="0.6"/>
+                        </Texture>
+                    </Layer>
+                </Layers>
+            </Frame>
+        </Frames>
+        <Scripts>
+            <OnLoad function="ReckoningAchievementButton_OnLoad"/>
+            <OnClick function="ReckoningAchievementButton_OnClick"/>
+            <OnEnter>
+                self.highlight:Show();
+                ReckoningAchievementButton_OnEnter(self);
+            </OnEnter>
+            <OnLeave>
+                if not self.selected then
+                    self.highlight:Hide();
+                end
+                ReckoningAchievementButton_OnLeave(self);
+            </OnLeave>
+        </Scripts>
+    </Button>
+
+    <!-- Main Achievement Frame -->
+    <Frame name="ReckoningAchievementFrame" toplevel="true" parent="UIParent" frameStrata="MEDIUM" hidden="true" enableMouse="true" inherits="BackdropTemplate">
+        <Size x="768" y="500"/>
+        <KeyValues>
+            <KeyValue key="backdropInfo" value="BACKDROP_ACHIEVEMENTS_0_64" type="global"/>
+        </KeyValues>
+        <Anchors>
+            <Anchor point="TOPLEFT" x="0" y="-104"/>
+        </Anchors>
+        <Layers>
+            <Layer level="BACKGROUND">
+                <Texture name="$parentBackground" file="Interface\TutorialFrame\TutorialFrameBackground">
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="16" y="-16"/>
+                        <Anchor point="BOTTOMRIGHT" x="-16" y="16"/>
+                    </Anchors>
+                </Texture>
+            </Layer>
+            <Layer level="ARTWORK">
+                <!-- Metal borders -->
+                <Texture name="$parentMetalBorderLeft" file="Interface\AchievementFrame\UI-Achievement-MetalBorder-Left">
+                    <Size x="16" y="436"/>
+                    <Anchors>
+                        <Anchor point="LEFT" x="14" y="0"/>
+                    </Anchors>
+                    <TexCoords left="0" right="1" top="0" bottom=".87"/>
+                </Texture>
+                <Texture name="$parentMetalBorderRight" file="Interface\AchievementFrame\UI-Achievement-MetalBorder-Left">
+                    <Size x="16" y="436"/>
+                    <Anchors>
+                        <Anchor point="RIGHT" x="-13" y="0"/>
+                    </Anchors>
+                    <TexCoords left="1" right="0" top=".87" bottom="0"/>
+                </Texture>
+                <Texture name="$parentMetalBorderBottom" file="Interface\AchievementFrame\UI-Achievement-MetalBorder-Top">
+                    <Size x="450" y="16"/>
+                    <Anchors>
+                        <Anchor point="BOTTOMLEFT" x="28" y="13"/>
+                        <Anchor point="BOTTOMRIGHT" x="-28" y="13"/>
+                    </Anchors>
+                    <TexCoords left="0" right=".87" top="1.0" bottom="0"/>
+                </Texture>
+                <Texture name="$parentMetalBorderTop" file="Interface\AchievementFrame\UI-Achievement-MetalBorder-Top">
+                    <Size x="450" y="16"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="28" y="-12"/>
+                        <Anchor point="TOPRIGHT" x="-28" y="-12"/>
+                    </Anchors>
+                    <TexCoords left=".87" right="0" top="0" bottom="1"/>
+                </Texture>
+                <!-- Categories parchment background -->
+                <Texture name="$parentCategoriesBG" file="Interface\AchievementFrame\UI-Achievement-Parchment">
+                    <Size x="195" y="0"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="25" y="-23"/>
+                        <Anchor point="BOTTOMLEFT" x="25" y="23"/>
+                    </Anchors>
+                    <TexCoords left="0" right="0.5" top="0" bottom="1"/>
+                </Texture>
+            </Layer>
+            <Layer level="OVERLAY">
+                <!-- Watermark -->
+                <Texture name="$parentWaterMark" file="Interface\AchievementFrame\UI-Achievement-AchievementWatermark">
+                    <Size x="256" y="256"/>
+                    <Anchors>
+                        <Anchor point="BOTTOMLEFT" relativeTo="$parentCategoriesBG" x="0" y="0"/>
+                    </Anchors>
+                </Texture>
+                <!-- Metal border corner joints (on top of wood borders) -->
+                <Texture name="$parentMetalBorderTopLeft" file="Interface\AchievementFrame\UI-Achievement-MetalBorder-Joint">
+                    <Size x="32" y="32"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="9" y="-7"/>
+                    </Anchors>
+                    <TexCoords left="1" right="0" top="1" bottom="0"/>
+                </Texture>
+                <Texture name="$parentMetalBorderTopRight" file="Interface\AchievementFrame\UI-Achievement-MetalBorder-Joint">
+                    <Size x="32" y="32"/>
+                    <Anchors>
+                        <Anchor point="TOPRIGHT" x="-8" y="-7"/>
+                    </Anchors>
+                    <TexCoords left="0" right="1" top="1" bottom="0"/>
+                </Texture>
+                <Texture name="$parentMetalBorderBottomLeft" file="Interface\AchievementFrame\UI-Achievement-MetalBorder-Joint">
+                    <Size x="32" y="32"/>
+                    <Anchors>
+                        <Anchor point="BOTTOMLEFT" x="9" y="8"/>
+                    </Anchors>
+                    <TexCoords left="1" right="0" top="0" bottom="1"/>
+                </Texture>
+                <Texture name="$parentMetalBorderBottomRight" file="Interface\AchievementFrame\UI-Achievement-MetalBorder-Joint">
+                    <Size x="32" y="32"/>
+                    <Anchors>
+                        <Anchor point="BOTTOMRIGHT" x="-8" y="8"/>
+                    </Anchors>
+                    <TexCoords left="0" right="1" top="0" bottom="1"/>
+                </Texture>
+                <!-- Wood border corners (behind metal borders) -->
+                <Texture name="$parentWoodBorderTopLeft" file="Interface\AchievementFrame\UI-Achievement-WoodBorder-Corner">
+                    <Size x="64" y="64"/>
+                    <Anchors>
+                        <Anchor point="TOPLEFT" x="4" y="-2"/>
+                    </Anchors>
+                    <TexCoords left="0" right="1" top="0" bottom="1"/>
+                </Texture>
+                <Texture name="$parentWoodBorderTopRight" file="Interface\AchievementFrame\UI-Achievement-WoodBorder-Corner">
+                    <Size x="64" y="64"/>
+                    <Anchors>
+                        <Anchor point="TOPRIGHT" x="-4" y="-2"/>
+                    </Anchors>
+                    <TexCoords left="1" right="0" top="0" bottom="1"/>
+                </Texture>
+                <Texture name="$parentWoodBorderBottomLeft" file="Interface\AchievementFrame\UI-Achievement-WoodBorder-Corner">
+                    <Size x="64" y="64"/>
+                    <Anchors>
+                        <Anchor point="BOTTOMLEFT" x="4" y="3"/>
+                    </Anchors>
+                    <TexCoords left="0" right="1" top="1" bottom="0"/>
+                </Texture>
+                <Texture name="$parentWoodBorderBottomRight" file="Interface\AchievementFrame\UI-Achievement-WoodBorder-Corner">
+                    <Size x="64" y="64"/>
+                    <Anchors>
+                        <Anchor point="BOTTOMRIGHT" x="-4" y="3"/>
+                    </Anchors>
+                    <TexCoords left="1" right="0" top="1" bottom="0"/>
+                </Texture>
+            </Layer>
+        </Layers>
+        <Frames>
+            <!-- Tab Buttons -->
+            <Button name="$parentTab1" parentKey="Tab1" inherits="ReckoningAchievementFrameTabButtonTemplate" id="1" text="ACHIEVEMENTS">
+                <Size x="120" y="32"/>
+                <Anchors>
+                    <Anchor point="BOTTOMLEFT">
+                        <Offset>
+                            <AbsDimension x="11" y="-30"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Scripts>
+                    <OnClick>
+                        ReckoningAchievementFrame_SelectTab(1)
+                        PlaySound(SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB or "igCharacterInfoTab")
+                    </OnClick>
+                </Scripts>
+            </Button>
+            <Button name="$parentTab2" parentKey="Tab2" inherits="ReckoningAchievementFrameTabButtonTemplate" id="2" text="Guild">
+                <Anchors>
+                    <Anchor point="LEFT" relativeTo="$parentTab1" relativePoint="RIGHT">
+                        <Offset>
+                            <AbsDimension x="-5" y="0"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Scripts>
+                    <OnClick>
+                        ReckoningAchievementFrame_SelectTab(2)
+                        PlaySound(SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB or "igCharacterInfoTab")
+                    </OnClick>
+                </Scripts>
+            </Button>
+            <!-- Header -->
+            <Frame name="$parentHeader" parentKey="Header" enableMouse="true">
+                <Size x="726" y="106"/>
+                <Anchors>
+                    <Anchor point="BOTTOMLEFT" relativeTo="ReckoningAchievementFrame" relativePoint="TOPLEFT" x="26" y="-38"/>
+                </Anchors>
+                <Layers>
+                    <Layer level="BACKGROUND">
+                        <Texture name="$parentLeft" file="Interface\AchievementFrame\UI-Achievement-Header">
+                            <Size x="512" y="106"/>
+                            <Anchors>
+                                <Anchor point="BOTTOMLEFT"/>
+                            </Anchors>
+                            <TexCoords left="0" right="1" top="0" bottom="0.4140625"/>
+                        </Texture>
+                        <Texture name="$parentRight" file="Interface\AchievementFrame\UI-Achievement-Header">
+                            <Size x="215" y="100"/>
+                            <Anchors>
+                                <Anchor point="BOTTOMLEFT" relativeTo="$parentLeft" relativePoint="BOTTOMRIGHT" x="0" y="-6"/>
+                            </Anchors>
+                            <TexCoords left="0" right="0.419921875" top="0.4140625" bottom="0.8046875"/>
+                        </Texture>
+                    </Layer>
+                    <Layer level="BORDER">
+                        <Texture name="$parentPointBorder" file="Interface\AchievementFrame\UI-Achievement-Header">
+                            <Size x="133" y="39"/>
+                            <Anchors>
+                                <Anchor point="BOTTOM" relativeTo="ReckoningAchievementFrameHeader" relativePoint="BOTTOM" x="20" y="16"/>
+                            </Anchors>
+                            <TexCoords left="0.419921875" right="0.6796875" top="0.4140625" bottom="0.56640625"/>
+                        </Texture>
+                        <FontString name="$parentTitle" inherits="GameFontNormal" text="Achievements">
+                            <Size x="200" y="12"/>
+                            <Anchors>
+                                <Anchor point="TOP" relativeTo="ReckoningAchievementFrameHeaderPointBorder" relativePoint="TOP" x="0" y="7"/>
+                            </Anchors>
+                        </FontString>
+                        <!-- Left DDL Inset (behind Filter Dropdown) -->
+                        <Texture name="$parentLeftDDLInset" parentKey="LeftDDLInset" file="Interface\AchievementFrame\UI-Achievement-RightDDLInset">
+                            <Size x="128" y="32"/>
+                            <Anchors>
+                                <Anchor point="TOPLEFT" x="112" y="-56"/>
+                            </Anchors>
+                        </Texture>
+                        <!-- Right DDL Inset (behind Search Box) -->
+                        <Texture name="$parentRightDDLInset" parentKey="RightDDLInset" file="Interface\AchievementFrame\UI-Achievement-RightDDLInset">
+                            <Size x="128" y="32"/>
+                            <Anchors>
+                                <Anchor point="TOPRIGHT" x="-76" y="-56"/>
+                            </Anchors>
+                        </Texture>
+                    </Layer>
+                    <Layer level="ARTWORK">
+                        <FontString name="$parentPoints" parentKey="Points" inherits="GameFontHighlight" text="0">
+                            <Size x="0" y="12"/>
+                            <Anchors>
+                                <Anchor point="TOP" relativeTo="ReckoningAchievementFrameHeaderPointBorder" relativePoint="TOP" x="0" y="-13"/>
+                            </Anchors>
+                        </FontString>
+                        <Texture name="$parentShield" file="Interface\AchievementFrame\UI-Achievement-TinyShield">
+                            <Size x="20" y="20"/>
+                            <Anchors>
+                                <Anchor point="LEFT" relativeTo="$parentPoints" relativePoint="RIGHT" x="3" y="-1"/>
+                            </Anchors>
+                            <TexCoords left="0" right="0.625" top="0" bottom="0.625"/>
+                        </Texture>
+                    </Layer>
+                </Layers>
+            </Frame>
+
+            <!-- Categories Panel -->
+            <Frame name="$parentCategories" parentKey="Categories" inherits="ReckoningGoldBorderBackdrop">
+                <Anchors>
+                    <Anchor point="TOPLEFT" x="21" y="-19"/>
+                    <Anchor point="BOTTOMLEFT" x="21" y="20"/>
+                </Anchors>
+                <Size x="175" y="0"/>
+                <Frames>
+                    <ScrollFrame name="$parentContainer" parentKey="Container" inherits="HybridScrollFrameTemplate">
+                        <Anchors>
+                            <Anchor point="TOPLEFT" x="0" y="-5"/>
+                            <Anchor point="BOTTOMRIGHT" x="0" y="5"/>
+                        </Anchors>
+                        <Frames>
+                            <Slider name="$parentScrollBar" inherits="HybridScrollBarTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" relativePoint="TOPRIGHT" x="1" y="-14"/>
+                                    <Anchor point="BOTTOMLEFT" relativePoint="BOTTOMRIGHT" x="1" y="12"/>
+                                </Anchors>
+                            </Slider>
+                        </Frames>
+                    </ScrollFrame>
+                </Frames>
+            </Frame>
+
+            <!-- Achievements Panel -->
+            <Frame name="$parentAchievements" parentKey="Achievements">
+                <Size x="504" y="440"/>
+                <Anchors>
+                    <Anchor point="TOPLEFT" relativeTo="$parentCategories" relativePoint="TOPRIGHT" x="22" y="0"/>
+                    <Anchor point="BOTTOM" relativeTo="$parentCategories" relativePoint="BOTTOM"/>
+                </Anchors>
+                <Layers>
+                    <Layer level="BACKGROUND" textureSubLevel="0">
+                        <Texture name="$parentBackground" parentKey="Background" file="Interface\AchievementFrame\UI-Achievement-AchievementBackground">
+                            <Anchors>
+                                <Anchor point="TOPLEFT" x="3" y="-3"/>
+                                <Anchor point="BOTTOMRIGHT" x="20" y="3"/>
+                            </Anchors>
+                            <TexCoords left="0" right="1" top="0" bottom="0.5"/>
+                        </Texture>
+                    </Layer>
+                    <Layer level="BACKGROUND" textureSubLevel="1">
+                        <Texture parentKey="BackgroundBlackCover">
+                            <Anchors>
+                                <Anchor point="TOPLEFT" relativeTo="$parentBackground" relativePoint="TOPLEFT" x="0" y="0"/>
+                                <Anchor point="BOTTOMRIGHT" relativeTo="$parentBackground" relativePoint="BOTTOMRIGHT" x="0" y="0"/>
+                            </Anchors>
+                            <Color r="0" g="0" b="0" a="0.75"/>
+                        </Texture>
+                    </Layer>
+                </Layers>
+                <Frames>
+                    <ScrollFrame name="$parentContainer" parentKey="Container" inherits="HybridScrollFrameTemplate">
+                        <Anchors>
+                            <Anchor point="TOPLEFT" x="4" y="-3"/>
+                            <Anchor point="BOTTOMRIGHT" x="0" y="5"/>
+                        </Anchors>
+                        <Frames>
+                            <Slider name="$parentScrollBar" inherits="HybridScrollBarTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" relativePoint="TOPRIGHT" x="1" y="-16"/>
+                                    <Anchor point="BOTTOMLEFT" relativePoint="BOTTOMRIGHT" x="1" y="12"/>
+                                </Anchors>
+                            </Slider>
+                        </Frames>
+                    </ScrollFrame>
+                    <Frame setAllPoints="true" inherits="ReckoningGoldBorderBackdrop"/>
+                </Frames>
+            </Frame>
+
+            <!-- Summary Panel (shown when no category selected or on Overview) -->
+            <Frame name="$parentSummary" parentKey="Summary" hidden="true">
+                <Anchors>
+                    <Anchor point="TOPLEFT" relativeTo="$parentCategories" relativePoint="TOPRIGHT" x="22" y="0"/>
+                    <Anchor point="BOTTOMRIGHT" x="-19" y="20"/>
+                </Anchors>
+                <Layers>
+                    <Layer level="BACKGROUND">
+                        <Texture name="$parentBackground" file="Interface\AchievementFrame\UI-Achievement-AchievementBackground">
+                            <Anchors>
+                                <Anchor point="TOPLEFT" x="3" y="-3"/>
+                                <Anchor point="BOTTOMRIGHT" x="-3" y="3"/>
+                            </Anchors>
+                            <TexCoords left="0" right="1" top="0" bottom="0.5"/>
+                        </Texture>
+                    </Layer>
+                </Layers>
+                <Frames>
+                    <Frame setAllPoints="true"/>
+                    <!-- Recent Achievements Section -->
+                    <Frame name="$parentAchievements" parentKey="Achievements">
+                        <Size x="0" y="210"/>
+                        <Anchors>
+                            <Anchor point="TOPLEFT" x="5" y="-20"/>
+                            <Anchor point="TOPRIGHT" x="-5" y="-20"/>
+                        </Anchors>
+                        <Layers>
+                            <Layer level="ARTWORK">
+                                <FontString name="$parentEmptyText" parentKey="EmptyText" inherits="GameFontNormalLarge" text="No completed achievements yet">
+                                    <Color r="1" g="0.82" b="0" a="1"/>
+                                    <Anchors>
+                                        <Anchor point="TOP" x="0" y="-60"/>
+                                    </Anchors>
+                                </FontString>
+                                <FontString name="$parentPlaceholder" parentKey="Placeholder" inherits="GameFontNormal" text="Complete achievements to see them here!">
+                                    <Color r="0.9" g="0.9" b="0.9" a="1"/>
+                                    <Anchors>
+                                        <Anchor point="TOP" relativeTo="$parentEmptyText" relativePoint="BOTTOM" x="0" y="-10"/>
+                                    </Anchors>
+                                </FontString>
+                            </Layer>
+                        </Layers>
+                        <Frames>
+                            <Frame name="$parentHeader" parentKey="Header">
+                                <Size x="0" y="20"/>
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" x="0" y="0"/>
+                                    <Anchor point="TOPRIGHT" x="0" y="0"/>
+                                </Anchors>
+                                <Layers>
+                                    <Layer level="BACKGROUND">
+                                        <Texture name="$parentTexture" file="Interface\AchievementFrame\UI-Achievement-RecentHeader">
+                                            <Anchors>
+                                                <Anchor point="TOPLEFT" x="-20" y="0"/>
+                                                <Anchor point="BOTTOMRIGHT" x="20" y="0"/>
+                                            </Anchors>
+                                            <TexCoords left="0" right="1" top="0" bottom="0.71875"/>
+                                        </Texture>
+                                        <FontString name="$parentTitle" parentKey="Title" inherits="GameFontNormal" text="Recent Achievements">
+                                            <Size x="0" y="20"/>
+                                            <Anchors>
+                                                <Anchor point="CENTER" x="0" y="0"/>
+                                            </Anchors>
+                                        </FontString>
+                                    </Layer>
+                                </Layers>
+                            </Frame>
+                        </Frames>
+                    </Frame>
+                    <!-- Category Progress Section -->
+                    <Frame name="$parentCategories" parentKey="CategoriesProgress">
+                        <Size x="0" y="164"/>
+                        <Anchors>
+                            <Anchor point="TOPLEFT" relativeTo="$parentAchievements" relativePoint="BOTTOMLEFT" x="0" y="-8"/>
+                            <Anchor point="TOPRIGHT" relativeTo="$parentAchievements" relativePoint="BOTTOMRIGHT" x="0" y="-8"/>
+                        </Anchors>
+                        <Frames>
+                            <Frame name="$parentHeader" parentKey="Header">
+                                <Size x="0" y="20"/>
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" x="0" y="0"/>
+                                    <Anchor point="TOPRIGHT" x="0" y="0"/>
+                                </Anchors>
+                                <Layers>
+                                    <Layer level="BACKGROUND">
+                                        <Texture name="$parentTexture" file="Interface\AchievementFrame\UI-Achievement-RecentHeader">
+                                            <Anchors>
+                                                <Anchor point="TOPLEFT" x="-20" y="0"/>
+                                                <Anchor point="BOTTOMRIGHT" x="20" y="0"/>
+                                            </Anchors>
+                                            <TexCoords left="0" right="1" top="0" bottom="0.71875"/>
+                                        </Texture>
+                                        <FontString name="$parentTitle" parentKey="Title" inherits="GameFontNormal" text="Progress Overview">
+                                            <Size x="0" y="20"/>
+                                            <Anchors>
+                                                <Anchor point="CENTER" x="0" y="0"/>
+                                            </Anchors>
+                                        </FontString>
+                                    </Layer>
+                                </Layers>
+                            </Frame>
+                            <!-- Overall Status Bar -->
+                            <StatusBar name="$parentStatusBar" parentKey="StatusBar" drawLayer="BORDER">
+                                <Size x="470" y="21"/>
+                                <Anchors>
+                                    <Anchor point="TOP" relativeTo="$parentHeader" relativePoint="BOTTOM" x="0" y="-6"/>
+                                </Anchors>
+                                <Layers>
+                                    <Layer level="OVERLAY">
+                                        <FontString name="$parentTitle" parentKey="Title" inherits="GameFontNormal" text="Achievements Completed">
+                                            <Anchors>
+                                                <Anchor point="LEFT" x="6" y="4"/>
+                                            </Anchors>
+                                        </FontString>
+                                        <FontString name="$parentText" parentKey="Text" inherits="GameFontHighlight">
+                                            <Size x="0" y="14"/>
+                                            <Anchors>
+                                                <Anchor point="RIGHT" x="-5" y="3"/>
+                                            </Anchors>
+                                        </FontString>
+                                        <Texture name="$parentLeft" file="Interface\AchievementFrame\UI-Achievement-Header">
+                                            <Size x="32" y="48"/>
+                                            <Anchors>
+                                                <Anchor point="TOPLEFT" x="-15" y="16"/>
+                                            </Anchors>
+                                            <TexCoords left="0.423828125" right="0.486" top="0.56640625" bottom="0.75"/>
+                                        </Texture>
+                                        <Texture name="$parentRight" file="Interface\AchievementFrame\UI-Achievement-Header">
+                                            <Size x="32" y="48"/>
+                                            <Anchors>
+                                                <Anchor point="TOPRIGHT" x="15" y="16"/>
+                                            </Anchors>
+                                            <TexCoords right="0.423828125" left="0.486" bottom="0.75" top="0.56640625"/>
+                                        </Texture>
+                                        <Texture name="$parentMiddle" file="Interface\AchievementFrame\UI-Achievement-Header">
+                                            <Size x="218" y="48"/>
+                                            <Anchors>
+                                                <Anchor point="TOPLEFT" relativeTo="$parentLeft" relativePoint="TOPRIGHT"/>
+                                                <Anchor point="BOTTOMRIGHT" relativeTo="$parentRight" relativePoint="BOTTOMLEFT"/>
+                                            </Anchors>
+                                            <TexCoords right="0.486" left="0.889224609375" bottom="0.75" top="0.56640625"/>
+                                        </Texture>
+                                    </Layer>
+                                    <Layer level="BACKGROUND">
+                                        <Texture name="$parentFillBar" parentKey="FillBar">
+                                            <Size x="0" y="15"/>
+                                            <Color r="0" g="0" b="0" a="0.5"/>
+                                        </Texture>
+                                    </Layer>
+                                </Layers>
+                                <BarTexture name="$parentBar" file="Interface\PaperDollInfoFrame\UI-Character-Skills-Bar"/>
+                                <BarColor r="0" g="1" b="0"/>
+                            </StatusBar>
+                            <!-- Category 1 (left column, row 1) -->
+                            <StatusBar name="$parentCategory1" parentKey="Category1" inherits="ReckoningSummaryCategoryTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" relativeTo="$parentStatusBar" relativePoint="BOTTOMLEFT" x="7" y="-24"/>
+                                </Anchors>
+                            </StatusBar>
+                            <!-- Category 2 (right column, row 1) -->
+                            <StatusBar name="$parentCategory2" parentKey="Category2" inherits="ReckoningSummaryCategoryTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" relativeTo="$parentCategory1" relativePoint="TOPRIGHT" x="20" y="0"/>
+                                </Anchors>
+                            </StatusBar>
+                            <!-- Category 3 (left column, row 2) -->
+                            <StatusBar name="$parentCategory3" parentKey="Category3" inherits="ReckoningSummaryCategoryTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" relativeTo="$parentCategory1" relativePoint="BOTTOMLEFT" x="0" y="-8"/>
+                                </Anchors>
+                            </StatusBar>
+                            <!-- Category 4 (right column, row 2) -->
+                            <StatusBar name="$parentCategory4" parentKey="Category4" inherits="ReckoningSummaryCategoryTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" relativeTo="$parentCategory3" relativePoint="TOPRIGHT" x="20" y="0"/>
+                                </Anchors>
+                            </StatusBar>
+                            <!-- Category 5 (left column, row 3) -->
+                            <StatusBar name="$parentCategory5" parentKey="Category5" inherits="ReckoningSummaryCategoryTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" relativeTo="$parentCategory3" relativePoint="BOTTOMLEFT" x="0" y="-8"/>
+                                </Anchors>
+                            </StatusBar>
+                            <!-- Category 6 (right column, row 3) -->
+                            <StatusBar name="$parentCategory6" parentKey="Category6" inherits="ReckoningSummaryCategoryTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" relativeTo="$parentCategory5" relativePoint="TOPRIGHT" x="20" y="0"/>
+                                </Anchors>
+                            </StatusBar>
+                            <!-- Category 7 (left column, row 4) -->
+                            <StatusBar name="$parentCategory7" parentKey="Category7" inherits="ReckoningSummaryCategoryTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" relativeTo="$parentCategory5" relativePoint="BOTTOMLEFT" x="0" y="-8"/>
+                                </Anchors>
+                            </StatusBar>
+                            <!-- Category 8 (right column, row 4) -->
+                            <StatusBar name="$parentCategory8" parentKey="Category8" inherits="ReckoningSummaryCategoryTemplate">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" relativeTo="$parentCategory7" relativePoint="TOPRIGHT" x="20" y="0"/>
+                                </Anchors>
+                            </StatusBar>
+                        </Frames>
+                    </Frame>
+                    <Frame setAllPoints="true" inherits="ReckoningGoldBorderBackdrop"/>
+                </Frames>
+            </Frame>
+
+            <!-- Close Button -->
+            <Button name="$parentCloseButton" inherits="UIPanelCloseButton">
+                <Anchors>
+                    <Anchor point="TOPRIGHT" x="2" y="4"/>
+                </Anchors>
+            </Button>
+
+            <!-- Filter Dropdown -->
+            <Frame name="$parentFilterDropDown" parentKey="FilterDropDown" inherits="UIDropDownMenuTemplate" enableMouse="true">
+                <Anchors>
+                    <Anchor point="TOPLEFT" x="120" y="12"/>
+                </Anchors>
+            </Frame>
+
+            <!-- Search Box -->
+            <EditBox name="$parentSearchBox" parentKey="SearchBox" inherits="SearchBoxTemplate" letters="40" frameStrata="TOOLTIP">
+                <Size x="110" y="20"/>
+                <Anchors>
+                    <Anchor point="TOPRIGHT" x="-100" y="10"/>
+                </Anchors>
+            </EditBox>
+
+            <!-- Search Results Dropdown -->
+            <Frame name="$parentSearchResults" parentKey="SearchResults" hidden="true" frameStrata="DIALOG" enableMouse="true">
+                <Size x="206" y="100"/>
+                <Anchors>
+                    <Anchor point="TOPLEFT" relativeTo="$parentSearchBox" relativePoint="BOTTOMLEFT" x="-4" y="3"/>
+                </Anchors>
+                <Layers>
+                    <Layer level="BACKGROUND">
+                        <Texture name="$parentBackground" atlas="_search-rowbg">
+                            <Anchors>
+                                <Anchor point="TOPLEFT" x="0" y="0"/>
+                                <Anchor point="BOTTOMRIGHT" x="0" y="0"/>
+                            </Anchors>
+                        </Texture>
+                    </Layer>
+                    <Layer level="OVERLAY">
+                        <!-- Border Anchor (Bottom Left Corner) -->
+                        <Texture name="$parentBorderAnchor" parentKey="BorderAnchor" inherits="UI-Frame-BotCornerLeft">
+                            <Anchors>
+                                <Anchor point="LEFT" x="-7" y="0"/>
+                                <Anchor point="BOTTOM" x="0" y="-5"/>
+                            </Anchors>
+                        </Texture>
+                        <!-- Bottom Right Corner -->
+                        <Texture name="$parentBotRightCorner" parentKey="BotRightCorner" inherits="UI-Frame-BotCornerRight">
+                            <Anchors>
+                                <Anchor point="BOTTOM" relativeKey="$parent.BorderAnchor" x="0" y="0"/>
+                                <Anchor point="RIGHT" x="4" y="0"/>
+                            </Anchors>
+                        </Texture>
+                        <!-- Bottom Border -->
+                        <Texture name="$parentBottomBorder" parentKey="BottomBorder" inherits="_UI-Frame-Bot">
+                            <Anchors>
+                                <Anchor point="BOTTOMLEFT" relativeKey="$parent.BorderAnchor" relativePoint="BOTTOMRIGHT" y="0"/>
+                                <Anchor point="BOTTOMRIGHT" relativeKey="$parent.BotRightCorner" relativePoint="BOTTOMLEFT" y="0"/>
+                            </Anchors>
+                        </Texture>
+                        <!-- Left Border -->
+                        <Texture name="$parentLeftBorder" parentKey="LeftBorder" inherits="!UI-Frame-LeftTile">
+                            <Anchors>
+                                <Anchor point="TOP" x="0" y="1" />
+                                <Anchor point="BOTTOMLEFT" relativeKey="$parent.BorderAnchor" relativePoint="TOPLEFT"/>
+                            </Anchors>
+                        </Texture>
+                        <!-- Right Border -->
+                        <Texture name="$parentRightBorder" parentKey="RightBorder" inherits="!UI-Frame-RightTile">
+                            <Anchors>
+                                <Anchor point="TOP" x="0" y="1" />
+                                <Anchor point="BOTTOMRIGHT" relativeKey="$parent.BotRightCorner" relativePoint="TOPRIGHT" x="1" y="0"/>
+                            </Anchors>
+                        </Texture>
+                        <!-- Top Border -->
+                        <Texture name="$parentTopBorder" parentKey="TopBorder" inherits="_UI-Frame-Bot">
+                            <Anchors>
+                                <Anchor point="TOPLEFT" relativePoint="TOPLEFT" x="-2" y="3"/>
+                                <Anchor point="BOTTOMRIGHT" relativePoint="TOPRIGHT" x="2" y="-3"/>
+                            </Anchors>
+                        </Texture>
+                    </Layer>
+                </Layers>
+            </Frame>
+
+            <!-- Guild Tab Content -->
+            <Frame name="$parentGuild" parentKey="Guild" hidden="true">
+                <Anchors>
+                    <Anchor point="TOPLEFT" x="21" y="-19"/>
+                    <Anchor point="BOTTOMRIGHT" x="-19" y="20"/>
+                </Anchors>
+                <Frames>
+                    <!-- Guild Categories Panel (left side with sub-tabs) -->
+                    <Frame name="$parentCategories" parentKey="Categories" inherits="ReckoningGoldBorderBackdrop">
+                        <Size x="198" y="0"/>
+                        <Anchors>
+                            <Anchor point="TOPLEFT"/>
+                            <Anchor point="BOTTOMLEFT"/>
+                        </Anchors>
+                        <Layers>
+                            <Layer level="BACKGROUND">
+                                <Texture parentKey="Background" file="Interface\AchievementFrame\UI-GuildAchievement-Parchment">
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" x="3" y="-3"/>
+                                        <Anchor point="BOTTOMRIGHT" x="-3" y="3"/>
+                                    </Anchors>
+                                    <TexCoords left="0" right="0.5" top="0" bottom="1"/>
+                                </Texture>
+                            </Layer>
+                        </Layers>
+                        <Frames>
+                            <!-- Simple container frame without scrollbar -->
+                            <Frame name="$parentContainer" parentKey="Container">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" x="0" y="-5"/>
+                                    <Anchor point="BOTTOMRIGHT" x="0" y="5"/>
+                                </Anchors>
+                                <Frames>
+                                    <!-- Guild Sub-Tab: Events -->
+                                    <Button name="$parentEventsButton" parentKey="EventsButton" inherits="ReckoningAchievementCategoryButtonTemplate">
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" x="0" y="0"/>
+                                        </Anchors>
+                                        <Scripts>
+                                            <OnLoad>
+                                                self.label:SetText("Events")
+                                                self.guildSubTab = "events"
+                                            </OnLoad>
+                                            <OnClick>
+                                                ReckoningGuildFrame_SelectSubTab(self:GetParent():GetParent():GetParent():GetParent(), "events")
+                                                PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+                                            </OnClick>
+                                        </Scripts>
+                                    </Button>
+                                    <!-- Guild Sub-Tab: Roster -->
+                                    <Button name="$parentRosterButton" parentKey="RosterButton" inherits="ReckoningAchievementCategoryButtonTemplate">
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" relativeTo="$parentEventsButton" relativePoint="BOTTOMLEFT" x="0" y="-2"/>
+                                        </Anchors>
+                                        <Scripts>
+                                            <OnLoad>
+                                                self.label:SetText("Roster")
+                                                self.guildSubTab = "roster"
+                                            </OnLoad>
+                                            <OnClick>
+                                                ReckoningGuildFrame_SelectSubTab(self:GetParent():GetParent():GetParent():GetParent(), "roster")
+                                                PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+                                            </OnClick>
+                                        </Scripts>
+                                    </Button>
+                                </Frames>
+                            </Frame>
+                        </Frames>
+                    </Frame>
+                    <!-- Guild Content Panel (right side) -->
+                    <Frame name="$parentContent" parentKey="Content">
+                        <Anchors>
+                            <Anchor point="TOPLEFT" relativeTo="$parentCategories" relativePoint="TOPRIGHT" x="0" y="0"/>
+                            <Anchor point="BOTTOMRIGHT"/>
+                        </Anchors>
+                        <Layers>
+                            <Layer level="BACKGROUND">
+                                <Texture parentKey="Background" file="Interface\AchievementFrame\UI-GuildAchievement-AchievementBackground">
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" x="3" y="-3"/>
+                                        <Anchor point="BOTTOMRIGHT" x="-3" y="3"/>
+                                    </Anchors>
+                                    <TexCoords left="0" right="1" top="0" bottom="0.5"/>
+                                </Texture>
+                            </Layer>
+                        </Layers>
+                        <Frames>
+                            <!-- Guild Events Panel -->
+                            <Frame name="$parentEvents" parentKey="Events" hidden="false">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" x="10" y="-10"/>
+                                    <Anchor point="BOTTOMRIGHT" x="-10" y="10"/>
+                                </Anchors>
+                                <Frames>
+                                    <!-- Header -->
+                                    <Frame name="$parentHeader" parentKey="Header">
+                                        <Size x="0" y="20"/>
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" x="0" y="0"/>
+                                            <Anchor point="TOPRIGHT" x="0" y="0"/>
+                                        </Anchors>
+                                        <Layers>
+                                            <Layer level="BACKGROUND">
+                                                <Texture file="Interface\AchievementFrame\UI-Achievement-RecentHeader">
+                                                    <Anchors>
+                                                        <Anchor point="TOPLEFT" x="-20" y="0"/>
+                                                        <Anchor point="BOTTOMRIGHT" x="20" y="0"/>
+                                                    </Anchors>
+                                                    <TexCoords left="0" right="1" top="0" bottom="0.71875"/>
+                                                </Texture>
+                                                <FontString parentKey="Title" inherits="GameFontNormal" text="Recent Guild Achievements">
+                                                    <Size x="0" y="20"/>
+                                                    <Anchors>
+                                                        <Anchor point="CENTER" x="0" y="0"/>
+                                                    </Anchors>
+                                                </FontString>
+                                            </Layer>
+                                        </Layers>
+                                        <Frames>
+                                            <!-- Sync Button -->
+                                            <Button name="$parentSyncButton" parentKey="SyncButton">
+                                                <Size x="60" y="18"/>
+                                                <Anchors>
+                                                    <Anchor point="RIGHT" x="-5" y="0"/>
+                                                </Anchors>
+                                                <NormalFont style="GameFontNormalSmall"/>
+                                                <HighlightFont style="GameFontHighlightSmall"/>
+                                                <Scripts>
+                                                    <OnClick>
+                                                        ReckoningGuildFrame_TriggerSync()
+                                                        PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+                                                    </OnClick>
+                                                    <OnEnter>
+                                                        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                                                        GameTooltip:SetText("Request achievement data from guild members", nil, nil, nil, nil, true)
+                                                        GameTooltip:Show()
+                                                    </OnEnter>
+                                                    <OnLeave>
+                                                        GameTooltip:Hide()
+                                                    </OnLeave>
+                                                </Scripts>
+                                                <NormalTexture file="Interface\Buttons\UI-Panel-Button-Up">
+                                                    <TexCoords left="0" right="0.625" top="0" bottom="0.6875"/>
+                                                </NormalTexture>
+                                                <PushedTexture file="Interface\Buttons\UI-Panel-Button-Down">
+                                                    <TexCoords left="0" right="0.625" top="0" bottom="0.6875"/>
+                                                </PushedTexture>
+                                                <HighlightTexture file="Interface\Buttons\UI-Panel-Button-Highlight" alphaMode="ADD">
+                                                    <TexCoords left="0" right="0.625" top="0" bottom="0.6875"/>
+                                                </HighlightTexture>
+                                                <ButtonText>
+                                                    <Anchors>
+                                                        <Anchor point="CENTER" x="0" y="1"/>
+                                                    </Anchors>
+                                                </ButtonText>
+                                            </Button>
+                                        </Frames>
+                                    </Frame>
+                                    <!-- Empty State (shown when no events) -->
+                                    <Frame name="$parentEmptyState" parentKey="EmptyState" hidden="true">
+                                        <Anchors>
+                                            <Anchor point="CENTER" x="0" y="0"/>
+                                        </Anchors>
+                                        <Size x="300" y="100"/>
+                                        <Layers>
+                                            <Layer level="ARTWORK">
+                                                <FontString parentKey="Text" inherits="GameFontNormalLarge" text="No Recent Guild Activity">
+                                                    <Anchors>
+                                                        <Anchor point="CENTER" x="0" y="10"/>
+                                                    </Anchors>
+                                                    <Color r="0.5" g="0.5" b="0.5"/>
+                                                </FontString>
+                                                <FontString parentKey="SubText" inherits="GameFontNormalSmall" text="Click 'Sync' to request data from guild members">
+                                                    <Anchors>
+                                                        <Anchor point="CENTER" x="0" y="-15"/>
+                                                    </Anchors>
+                                                    <Color r="0.6" g="0.6" b="0.6"/>
+                                                </FontString>
+                                            </Layer>
+                                        </Layers>
+                                    </Frame>
+                                    <!-- Scrollable Events List -->
+                                    <ScrollFrame name="$parentScrollFrame" parentKey="ScrollFrame" inherits="HybridScrollFrameTemplate">
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" relativeTo="$parentHeader" relativePoint="BOTTOMLEFT" x="0" y="-5"/>
+                                            <Anchor point="BOTTOMRIGHT" x="0" y="0"/>
+                                        </Anchors>
+                                        <Frames>
+                                            <Slider name="$parentScrollBar" inherits="HybridScrollBarTemplate">
+                                                <Anchors>
+                                                    <Anchor point="TOPLEFT" relativePoint="TOPRIGHT" x="-20" y="-16"/>
+                                                    <Anchor point="BOTTOMLEFT" relativePoint="BOTTOMRIGHT" x="-20" y="12"/>
+                                                </Anchors>
+                                            </Slider>
+                                        </Frames>
+                                    </ScrollFrame>
+                                </Frames>
+                            </Frame>
+                            <!-- Guild Roster Panel -->
+                            <Frame name="$parentRoster" parentKey="Roster" hidden="true">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" x="10" y="-10"/>
+                                    <Anchor point="BOTTOMRIGHT" x="-10" y="10"/>
+                                </Anchors>
+                                <Frames>
+                                    <!-- Header Row -->
+                                    <Frame name="$parentHeader" parentKey="Header">
+                                        <Size x="0" y="24"/>
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" x="0" y="0"/>
+                                            <Anchor point="TOPRIGHT" x="0" y="0"/>
+                                        </Anchors>
+                                        <Layers>
+                                            <Layer level="BACKGROUND">
+                                                <Texture>
+                                                    <Anchors>
+                                                        <Anchor point="TOPLEFT"/>
+                                                        <Anchor point="BOTTOMRIGHT"/>
+                                                    </Anchors>
+                                                    <Color r="0" g="0" b="0" a="0.5"/>
+                                                </Texture>
+                                            </Layer>
+                                        </Layers>
+                                        <Frames>
+                                            <!-- Sortable Header Buttons -->
+                                            <Button parentKey="NameHeader">
+                                                <Size x="130" y="24"/>
+                                                <Anchors>
+                                                    <Anchor point="LEFT" x="10" y="0"/>
+                                                </Anchors>
+                                                <Layers>
+                                                    <Layer level="ARTWORK">
+                                                        <FontString parentKey="Text" inherits="GameFontNormalSmall" text="Name">
+                                                            <Anchors>
+                                                                <Anchor point="LEFT" x="0" y="0"/>
+                                                            </Anchors>
+                                                            <Color r="1" g="0.82" b="0"/>
+                                                        </FontString>
+                                                    </Layer>
+                                                </Layers>
+                                                <Scripts>
+                                                    <OnClick>
+                                                        ReckoningGuildRoster_SortBy(self:GetParent():GetParent(), "name")
+                                                        PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+                                                    </OnClick>
+                                                    <OnEnter>
+                                                        self.Text:SetTextColor(1, 1, 1)
+                                                    </OnEnter>
+                                                    <OnLeave>
+                                                        self.Text:SetTextColor(1, 0.82, 0)
+                                                    </OnLeave>
+                                                </Scripts>
+                                            </Button>
+                                            <Button parentKey="ClassHeader">
+                                                <Size x="100" y="24"/>
+                                                <Anchors>
+                                                    <Anchor point="LEFT" x="150" y="0"/>
+                                                </Anchors>
+                                                <Layers>
+                                                    <Layer level="ARTWORK">
+                                                        <FontString parentKey="Text" inherits="GameFontNormalSmall" text="Class">
+                                                            <Anchors>
+                                                                <Anchor point="LEFT" x="0" y="0"/>
+                                                            </Anchors>
+                                                            <Color r="1" g="0.82" b="0"/>
+                                                        </FontString>
+                                                    </Layer>
+                                                </Layers>
+                                                <Scripts>
+                                                    <OnClick>
+                                                        ReckoningGuildRoster_SortBy(self:GetParent():GetParent(), "class")
+                                                        PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+                                                    </OnClick>
+                                                    <OnEnter>
+                                                        self.Text:SetTextColor(1, 1, 1)
+                                                    </OnEnter>
+                                                    <OnLeave>
+                                                        self.Text:SetTextColor(1, 0.82, 0)
+                                                    </OnLeave>
+                                                </Scripts>
+                                            </Button>
+                                            <Button parentKey="VersionHeader">
+                                                <Size x="90" y="24"/>
+                                                <Anchors>
+                                                    <Anchor point="LEFT" x="260" y="0"/>
+                                                </Anchors>
+                                                <Layers>
+                                                    <Layer level="ARTWORK">
+                                                        <FontString parentKey="Text" inherits="GameFontNormalSmall" text="Version">
+                                                            <Anchors>
+                                                                <Anchor point="LEFT" x="0" y="0"/>
+                                                            </Anchors>
+                                                            <Color r="1" g="0.82" b="0"/>
+                                                        </FontString>
+                                                    </Layer>
+                                                </Layers>
+                                                <Scripts>
+                                                    <OnClick>
+                                                        ReckoningGuildRoster_SortBy(self:GetParent():GetParent(), "version")
+                                                        PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+                                                    </OnClick>
+                                                    <OnEnter>
+                                                        self.Text:SetTextColor(1, 1, 1)
+                                                    </OnEnter>
+                                                    <OnLeave>
+                                                        self.Text:SetTextColor(1, 0.82, 0)
+                                                    </OnLeave>
+                                                </Scripts>
+                                            </Button>
+                                            <Button parentKey="StatusHeader">
+                                                <Size x="100" y="24"/>
+                                                <Anchors>
+                                                    <Anchor point="LEFT" x="360" y="0"/>
+                                                </Anchors>
+                                                <Layers>
+                                                    <Layer level="ARTWORK">
+                                                        <FontString parentKey="Text" inherits="GameFontNormalSmall" text="Last Seen">
+                                                            <Anchors>
+                                                                <Anchor point="LEFT" x="0" y="0"/>
+                                                            </Anchors>
+                                                            <Color r="1" g="0.82" b="0"/>
+                                                        </FontString>
+                                                    </Layer>
+                                                </Layers>
+                                                <Scripts>
+                                                    <OnClick>
+                                                        ReckoningGuildRoster_SortBy(self:GetParent():GetParent(), "status")
+                                                        PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+                                                    </OnClick>
+                                                    <OnEnter>
+                                                        self.Text:SetTextColor(1, 1, 1)
+                                                    </OnEnter>
+                                                    <OnLeave>
+                                                        self.Text:SetTextColor(1, 0.82, 0)
+                                                    </OnLeave>
+                                                </Scripts>
+                                            </Button>
+                                        </Frames>
+                                    </Frame>
+                                    <!-- Empty State (shown when no roster data) -->
+                                    <Frame name="$parentEmptyState" parentKey="EmptyState" hidden="true">
+                                        <Anchors>
+                                            <Anchor point="CENTER" x="0" y="0"/>
+                                        </Anchors>
+                                        <Size x="300" y="100"/>
+                                        <Layers>
+                                            <Layer level="ARTWORK">
+                                                <FontString parentKey="Text" inherits="GameFontNormalLarge" text="No Guild Members Found">
+                                                    <Anchors>
+                                                        <Anchor point="CENTER" x="0" y="10"/>
+                                                    </Anchors>
+                                                    <Color r="0.5" g="0.5" b="0.5"/>
+                                                </FontString>
+                                                <FontString parentKey="SubText" inherits="GameFontNormalSmall" text="You may not be in a guild, or data hasn't synced yet">
+                                                    <Anchors>
+                                                        <Anchor point="CENTER" x="0" y="-15"/>
+                                                    </Anchors>
+                                                    <Color r="0.6" g="0.6" b="0.6"/>
+                                                </FontString>
+                                            </Layer>
+                                        </Layers>
+                                    </Frame>
+                                    <!-- Scrollable Roster Entries -->
+                                    <ScrollFrame name="$parentScrollFrame" parentKey="ScrollFrame" inherits="HybridScrollFrameTemplate">
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" relativeTo="$parentHeader" relativePoint="BOTTOMLEFT" x="0" y="-2"/>
+                                            <Anchor point="BOTTOMRIGHT" x="0" y="0"/>
+                                        </Anchors>
+                                        <Frames>
+                                            <Slider name="$parentScrollBar" inherits="HybridScrollBarTemplate">
+                                                <Anchors>
+                                                    <Anchor point="TOPLEFT" relativePoint="TOPRIGHT" x="-23" y="-16"/>
+                                                    <Anchor point="BOTTOMLEFT" relativePoint="BOTTOMRIGHT" x="-23" y="12"/>
+                                                </Anchors>
+                                            </Slider>
+                                        </Frames>
+                                    </ScrollFrame>
+                                </Frames>
+                            </Frame>
+                            <Frame setAllPoints="true" inherits="ReckoningGoldBorderBackdrop"/>
+                        </Frames>
+                    </Frame>
+                </Frames>
+            </Frame>
+        </Frames>
+        <Scripts>
+            <OnLoad function="ReckoningAchievementFrame_OnLoad"/>
+            <OnShow function="ReckoningAchievementFrame_OnShow"/>
+            <OnHide function="ReckoningAchievementFrame_OnHide"/>
+        </Scripts>
+    </Frame>
+</Ui>

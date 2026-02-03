@@ -1,0 +1,118 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
+
+    <Button name="ReckoningAchievementAlertFrame" parent="UIParent" frameStrata="HIGH" frameLevel="100" enableMouse="true" hidden="true">
+        <Size x="300" y="101"/>
+        <Anchors>
+            <Anchor point="BOTTOM" relativeTo="UIParent" relativePoint="BOTTOM" x="0" y="128"/>
+        </Anchors>
+        <NormalTexture/>
+        <PushedTexture/>
+        <HighlightTexture/>
+        <Layers>
+            <Layer level="BACKGROUND">
+                <Texture parentKey="Background" file="Interface\AddOns\Reckoning\Media\Textures\achievementtoast">
+                    <Size x="310" y="101"/>
+                    <Anchors>
+                        <Anchor point="CENTER"/>
+                    </Anchors>
+                    <TexCoords left="0.625" right="0.927734375" top="0.169921875" bottom="0.2685546875"/>
+                </Texture>
+                <FontString parentKey="Unlocked" inherits="GameFontBlackTiny" text="ACHIEVEMENT EARNED">
+                    <Size x="200" y="12"/>
+                    <Anchors>
+                        <Anchor point="TOP" x="7" y="-23"/>
+                    </Anchors>
+                </FontString>
+                <FontString parentKey="Name" inherits="GameFontHighlight" maxLines="2" justifyH="CENTER" justifyV="MIDDLE">
+                    <Size x="155" y="36"/>
+                    <Anchors>
+                        <Anchor point="TOP" relativeKey="$parent.Unlocked" relativePoint="BOTTOM"/>
+                    </Anchors>
+                </FontString>
+            </Layer>
+            <Layer level="OVERLAY">
+                <Texture file="Interface\AddOns\Reckoning\Media\Textures\achievementtoast" alphaMode="ADD" hidden="true" parentKey="glow">
+                    <Size x="400" y="171"/>
+                    <Anchors>
+                        <Anchor point="CENTER" x="0" y="0"/>
+                    </Anchors>
+                    <TexCoords left="0.0009765625" right="0.3916015625" top="0.0009765625" bottom="0.16796875"/>
+                </Texture>
+                <Texture file="Interface\AddOns\Reckoning\Media\Textures\achievementtoast" alphaMode="ADD" hidden="true" parentKey="shine">
+                    <Size x="67" y="85"/>
+                    <Anchors>
+                        <Anchor point="BOTTOMLEFT" x="0" y="8"/>
+                    </Anchors>
+                    <TexCoords left="0.0009765625" right="0.06640625" top="0.845703125" bottom="0.9287109375"/>
+                </Texture>
+            </Layer>
+        </Layers>
+        <Frames>
+            <Frame parentKey="Icon">
+                <Size x="78" y="75"/>
+                <Anchors>
+                    <Anchor point="TOPLEFT" x="-4" y="-15"/>
+                </Anchors>
+                <Layers>
+                    <Layer level="BORDER">
+                        <Texture parentKey="Bling" file="Interface\AddOns\Reckoning\Media\Textures\achievementtoast" hidden="true">
+                            <Size x="107" y="107"/>
+                            <Anchors>
+                                <Anchor point="CENTER" x="-1" y="1"/>
+                            </Anchors>
+                            <TexCoords left="0.0009765625" right="0.10546875" top="0.453125" bottom="0.5576171875"/>
+                        </Texture>
+                    </Layer>
+                    <Layer level="ARTWORK">
+                        <Texture parentKey="Texture">
+                            <Anchors>
+                                <Anchor point="CENTER" x="0" y="0"/>
+                            </Anchors>
+                            <Size x="52" y="52"/>
+                        </Texture>
+                    </Layer>
+                    <Layer level="OVERLAY">
+                        <Texture parentKey="Overlay" file="Interface\AddOns\Reckoning\Media\Textures\achievementtoast">
+                            <Size x="74" y="74"/>
+                            <Anchors>
+                                <Anchor point="CENTER" x="-1" y="2"/>
+                            </Anchors>
+                            <TexCoords left="0.107421875" right="0.1796875" top="0.505859375" bottom="0.578125"/>
+                        </Texture>
+                    </Layer>
+                </Layers>
+            </Frame>
+            <Frame parentKey="Shield">
+                <Size x="64" y="64"/>
+                <Anchors>
+                    <Anchor point="TOPRIGHT" x="-8" y="-15"/>
+                </Anchors>
+                <Layers>
+                    <Layer level="BACKGROUND">
+                        <Texture parentKey="Icon" file="Interface\AddOns\Reckoning\Media\Textures\achievementtoast">
+                            <Size x="63" y="56"/>
+                            <Anchors>
+                                <Anchor point="TOPRIGHT" x="1" y="-6"/>
+                            </Anchors>
+                            <TexCoords left="0.92578125" right="0.9873046875" top="0.3046875" bottom="0.359375"/>
+                        </Texture>
+                    </Layer>
+                    <Layer level="OVERLAY">
+                        <FontString parentKey="Points" inherits="GameFontNormal">
+                            <Anchors>
+                                <Anchor point="CENTER" x="0" y="-2"/>
+                            </Anchors>
+                        </FontString>
+                    </Layer>
+                </Layers>
+            </Frame>
+        </Frames>
+        <Scripts>
+            <OnClick function="ReckoningAchievementAlert_OnClick"/>
+            <OnEnter function="ReckoningAchievementAlert_OnEnter"/>
+            <OnLeave function="ReckoningAchievementAlert_OnLeave"/>
+            <OnLoad function="ReckoningAchievementAlert_OnLoad"/>
+        </Scripts>
+    </Button>
+
+</Ui>
