@@ -646,8 +646,7 @@ end
 -------------------------------------------------------------------------------
 
 function eventBridge:HandleCombatLog(...)
-    -- TBC doesn't have CombatLogGetCurrentEventInfo(), args come directly
-    local timestamp, subevent, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags = ...
+    local timestamp, subevent, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags = CombatLogGetCurrentEventInfo()
 
     local playerGUID = UnitGUID("player")
 
