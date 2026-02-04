@@ -38,6 +38,7 @@ local Enums = Private.Enums
 ---| "CREATURE_KILLED"
 ---| "FALL_SURVIVED"
 ---| "PRIMAL_LOOTED"
+---| "TREASURE_CHEST_LOOTED"
 ---| "WEEKLY_RESET"
 ---| "ACHIEVEMENT_COMPLETED"
 
@@ -300,6 +301,7 @@ function eventBridge:Init()
         killingBlows = 0,
         startTime = nil,
         flagCarriers = {},  -- [playerName] = true for current flag carriers (WSG/EOTS)
+        pendingAssaults = {}, -- [objectiveName] = { player = string, time = number } for AB claim->capture
     }
 
     self.fallingState = {
@@ -552,6 +554,7 @@ function eventBridge:UpdateInstanceState()
             self.pvpState.startTime = GetTime()
             self.pvpState.kills = 0
             self.pvpState.killingBlows = 0
+            self.pvpState.pendingAssaults = {}
 
             self:Fire("BATTLEGROUND_MATCH_START", {
                 battleground = instanceName,
@@ -1349,7 +1352,19 @@ function eventBridge:HandleLootMessage(message)
 end
 
 function eventBridge:HandleLootOpened()
-    -- Could track what we're looting for better gathering detection
+    -- Track treasure chests via loot window opening
+    if type(UnitName) ~= "function" then return end
+    local targetName = UnitName("target")
+    if not targetName or targetName == "" then return end
+
+    local lowerName = targetName:lower()
+    local isChest = lowerName:find("chest") or lowerName:find("treasure") or lowerName:find("cache") or lowerName:find("coffer")
+    if not isChest then return end
+
+    self:Fire("TREASURE_CHEST_LOOTED", {
+        chestName = targetName,
+        zone = GetZoneText() or "Unknown",
+    })
 end
 
 function eventBridge:DetectGatherType(itemId, itemName)
@@ -1671,7 +1686,51 @@ function eventBridge:HandleBGSystemMessage(message)
         end
     end
 
-    -- Track objective captures
+    local playerName = UnitName("player")
+    local lowerMessage = message:lower()
+    local objectiveType, objectiveName = self:DetectObjectiveType(message)
+
+    -- Arathi Basin: "claims the" assault then "has taken the" capture
+    if self.pvpState.bgName == "Arathi Basin" then
+        local claimant = message:match("^(.+) claims the") or message:match("^(.+) has assaulted the")
+        if claimant and objectiveName and objectiveName ~= "Unknown" then
+            local name = claimant:gsub("^%s+", ""):gsub("%s+$", "")
+            if name ~= "" then
+                self.pvpState.pendingAssaults[objectiveName] = {
+                    player = name,
+                    time = GetTime(),
+                }
+            end
+        end
+
+        if lowerMessage:find("has taken the") or lowerMessage:find("has captured the") then
+            local pending = self.pvpState.pendingAssaults[objectiveName]
+            if pending then
+                local maxWindow = 70 -- 60s base capture + buffer
+                local elapsed = GetTime() - (pending.time or 0)
+                if elapsed <= maxWindow then
+                    local captureFaction = message:match("^The ([%a]+) has taken the") or message:match("^The ([%a]+) has captured the")
+                    local playerFaction = (type(UnitFactionGroup) == "function") and UnitFactionGroup("player") or nil
+                    if (not captureFaction or not playerFaction or captureFaction == playerFaction) and pending.player == playerName then
+                        self:Fire("PVP_OBJECTIVE_CAPTURED", {
+                            objectiveType = objectiveType,  -- Enums.ObjectiveType.Flag/Base/Tower
+                            location = self.pvpState.bgName or GetZoneText() or "Unknown",
+                            objectiveName = objectiveName or "Unknown",
+                        })
+                    end
+                end
+                self.pvpState.pendingAssaults[objectiveName] = nil
+                return
+            end
+        end
+
+        -- For AB assaults, we wait for capture confirmation
+        if claimant and claimant ~= "" then
+            return
+        end
+    end
+
+    -- Track objective captures (immediate for other BGs / messages that include player)
     local capturePatterns = {
         "has taken the",
         "has captured the",
@@ -1681,10 +1740,8 @@ function eventBridge:HandleBGSystemMessage(message)
     }
 
     -- Check if player name is mentioned
-    local playerName = UnitName("player")
     for _, pattern in ipairs(capturePatterns) do
         if message:find(pattern) and message:find(playerName) then
-            local objectiveType, objectiveName = self:DetectObjectiveType(message)
             self:Fire("PVP_OBJECTIVE_CAPTURED", {
                 objectiveType = objectiveType,  -- Enums.ObjectiveType.Flag/Base/Tower
                 location = self.pvpState.bgName or GetZoneText() or "Unknown",
@@ -1721,35 +1778,36 @@ end
 function eventBridge:DetectObjectiveType(message)
     local objectiveType = 2  -- Default to Base
     local objectiveName = "Unknown"
+    local lowerMessage = message:lower()
 
     -- AB bases
-    if message:find("Farm") then
+    if lowerMessage:find("farm") then
         objectiveType = 2  -- Base
         objectiveName = "Farm"
-    elseif message:find("Stables") then
+    elseif lowerMessage:find("stables") then
         objectiveType = 2
         objectiveName = "Stables"
-    elseif message:find("Blacksmith") then
+    elseif lowerMessage:find("blacksmith") then
         objectiveType = 2
         objectiveName = "Blacksmith"
-    elseif message:find("Lumber Mill") then
+    elseif lowerMessage:find("lumber mill") then
         objectiveType = 2
         objectiveName = "Lumber Mill"
-    elseif message:find("Gold Mine") then
+    elseif lowerMessage:find("gold mine") then
         objectiveType = 2
         objectiveName = "Gold Mine"
     -- AV objectives
-    elseif message:find("tower") or message:find("Tower") then
+    elseif lowerMessage:find("tower") then
         objectiveType = 3  -- Tower
         objectiveName = "Tower"
-    elseif message:find("bunker") or message:find("Bunker") then
+    elseif lowerMessage:find("bunker") then
         objectiveType = 3
         objectiveName = "Bunker"
-    elseif message:find("graveyard") or message:find("Graveyard") then
+    elseif lowerMessage:find("graveyard") then
         objectiveType = 3
         objectiveName = "Graveyard"
     -- WSG/EOTS flag
-    elseif message:find("flag") or message:find("Flag") then
+    elseif lowerMessage:find("flag") then
         objectiveType = 1  -- Flag
         objectiveName = "Flag"
     end

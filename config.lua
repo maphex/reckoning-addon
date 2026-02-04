@@ -4,6 +4,16 @@ local aUtils = Private.AchievementUtils
 local Enums = Private.Enums
 local const = Private.constants
 
+local OUTLAND_ZONES = {
+	["Hellfire Peninsula"] = true,
+	["Zangarmarsh"] = true,
+	["Terokkar Forest"] = true,
+	["Nagrand"] = true,
+	["Blade's Edge Mountains"] = true,
+	["Netherstorm"] = true,
+	["Shadowmoon Valley"] = true,
+}
+
 -------------------------------------------------------------------------------
 -- Category Registration
 -- Categories based on Reckoning.csv structure
@@ -1225,7 +1235,9 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "ZONE_EXPLORED",
-			conditions = {}
+			conditions = {
+				zone = function(z) return z and OUTLAND_ZONES[z] end
+			}
 		},
 		progress = { type = "criteria", required = 7 }
 	},
@@ -1388,14 +1400,16 @@ aUtils:RegisterAchievements({
 	{
 		id = 5019,
 		name = "Treasure of the Naaru",
-		description = "Explore 20 zones across Outland",
+		description = "Collect 20 treasure chests in Outland",
 		points = 10,
 		category = 5,
 		icon = 132594,
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
-			event = "ZONE_EXPLORED",
-			conditions = {}
+			event = "TREASURE_CHEST_LOOTED",
+			conditions = {
+				zone = function(z) return z and OUTLAND_ZONES[z] end
+			}
 		},
 		progress = { type = "count", required = 20 }
 	},
@@ -2675,7 +2689,7 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "PVP_OBJECTIVE_CAPTURED",
-			conditions = { battleground = "Arathi Basin" }
+			conditions = { location = "Arathi Basin" }
 		},
 		progress = { type = "count", required = 3, reset = "match" }
 	},
@@ -2899,7 +2913,7 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "PVP_OBJECTIVE_CAPTURED",
-			conditions = { battleground = "Alterac Valley", objectiveType = "tower_defense" }
+			conditions = { location = "Alterac Valley", objectiveType = "tower_defense" }
 		}
 	},
 	{
