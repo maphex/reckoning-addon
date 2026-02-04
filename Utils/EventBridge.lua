@@ -1583,7 +1583,16 @@ function eventBridge:HandleBattlefieldUpdate()
         local playerFaction = UnitFactionGroup("player") == "Alliance" and 1 or 0
         local isVictory = (winner == playerFaction)
 
-        local duration = GetTime() - (self.pvpState.startTime or GetTime())
+        local duration
+        if type(GetBattlefieldInstanceRunTime) == "function" then
+            local ms = GetBattlefieldInstanceRunTime()
+            if ms and ms > 0 then
+                duration = ms / 1000
+            end
+        end
+        if not duration then
+            duration = GetTime() - (self.pvpState.startTime or GetTime())
+        end
 
         -- Get final stats
         local numScores = GetNumBattlefieldScores()

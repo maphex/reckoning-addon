@@ -32,6 +32,11 @@ function commandUtils:Init()
         -- Info command (safe version)
         ["info"] = self.OnInfoCommand,
         ["version"] = self.OnInfoCommand,
+
+        -- Reset saved variables
+        ["reset"] = self.OnResetCommand,
+        ["clear"] = self.OnResetCommand,
+        ["resetdb"] = self.OnResetCommand,
     }
 
     -- If DebugCommands module is loaded (dev mode), register debug commands
@@ -102,6 +107,7 @@ function commandUtils:OnHelpCommand(args)
     addon:Print("|cffffffff/r|r or |cffffffff/reckoning|r - Toggle achievements window")
     addon:Print("|cffffffff/r settings|r - Open settings")
     addon:Print("|cffffffff/r info|r - Show addon information")
+    addon:Print("|cffffffff/r reset confirm|r - Clear saved data")
     addon:Print("|cffffffff/r help|r - Show this help")
 
     -- If debug mode is enabled, show additional info
@@ -160,6 +166,53 @@ function commandUtils:OnInfoCommand(args)
 
     local pointsName = const and const.DISPLAY and const.DISPLAY.POINTS_NAME or "Points"
     addon:Print(pointsName .. ": " .. earnedPoints .. "/" .. totalPoints)
+end
+
+function commandUtils:OnResetCommand(args)
+    local addon = Private.Addon
+    if not addon then return end
+
+    local confirm = args and args[1] == "confirm"
+    if not confirm then
+        addon:Print("This will clear all Reckoning saved data.")
+        addon:Print("Type |cffffffff/r reset confirm|r to proceed.")
+        return
+    end
+
+    local defaultDB = addon.DefaultDatabase or {}
+    local defaultCharDB = addon.DefaultCharDatabase or {}
+
+    addon.Database = addon:CopyTable(defaultDB)
+    addon.CharDatabase = addon:CopyTable(defaultCharDB)
+    _G["ReckoningDB"] = addon.Database
+    _G["ReckoningCharDB"] = addon.CharDatabase
+
+    local engine = Private.AchievementEngine
+    if engine then
+        engine.progressData = {}
+        engine.criteriaProgress = {}
+        engine.completedAchievements = {}
+        engine.completedTimestamps = {}
+        engine.failedState = {}
+        engine.lastWeek = 0
+        engine.dataLoaded = false
+        engine:LoadProgress()
+    end
+
+    if Private.EventBridge then
+        Private.EventBridge.exploredZones = addon.Database.exploredZones or {}
+    end
+
+    local guildSync = Private.GuildSyncUtils
+    if guildSync then
+        guildSync.memberData = {}
+        guildSync.recentEvents = {}
+        guildSync.pendingChunks = {}
+        guildSync.lastResponseToRequester = {}
+        guildSync:SaveCachedData()
+    end
+
+    addon:Print("Saved data cleared.")
 end
 
 -------------------------------------------------------------------------------

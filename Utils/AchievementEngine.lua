@@ -267,6 +267,10 @@ end
 ---@param event string
 ---@param payload table
 function engine:OnBridgeEvent(event, payload)
+    if event == "BATTLEGROUND_MATCH_START" then
+        self:ResetMatchProgress()
+    end
+
     local aUtils = Private.AchievementUtils
     local debugUtils = Private.DebugUtils
     if not aUtils then return end
@@ -306,6 +310,26 @@ function engine:OnBridgeEvent(event, payload)
                 debugUtils:LogTriggerEval(achievement, event)
             end
             self:EvaluateAchievement(achievement, payload, event)
+        end
+    end
+end
+
+---Reset progress for achievements that require a single match
+function engine:ResetMatchProgress()
+    local aUtils = Private.AchievementUtils
+    if not aUtils then return end
+
+    for id, achievement in pairs(aUtils.achievements) do
+        local progress = achievement.progress
+        if progress and progress.reset == "match" then
+            if not self.completedAchievements[id] then
+                self.progressData[id] = 0
+                self.criteriaProgress[id] = {}
+                self.failedState[id] = nil
+
+                local total = progress.required or 1
+                self:UpdateUIProgress(id, 0, total)
+            end
         end
     end
 end
@@ -777,6 +801,9 @@ function engine:CompleteAchievement(achievement)
     -- Print achievement link to chat
     self:PrintAchievementEarned(achievement)
 
+    -- Send to guild chat
+    self:SendAchievementToGuildChat(achievement)
+
     -- Broadcast to guild
     self:BroadcastAchievementToGuild(achievement)
 end
@@ -831,6 +858,33 @@ function engine:PrintAchievementEarned(achievement)
         -- Fallback to print if DEFAULT_CHAT_FRAME isn't available
         print(message)
     end
+end
+
+---Send achievement earned message to guild chat
+---@param achievement Achievement
+function engine:SendAchievementToGuildChat(achievement)
+    local const = Private.constants
+
+    if const and const.ANNOUNCEMENTS and const.ANNOUNCEMENTS.SEND_GUILD_CHAT == false then
+        return
+    end
+
+    if type(SendChatMessage) ~= "function" or not IsInGuild() then
+        return
+    end
+
+    local playerName = UnitName and UnitName("player") or "Player"
+    local pointsName = const and const.DISPLAY and const.DISPLAY.POINTS_NAME or "Points"
+    local link = self:CreateAchievementLink(achievement)
+    local message = string.format(
+        "Reckoning: %s earned %s for %d %s!",
+        playerName,
+        link,
+        achievement.points or 0,
+        pointsName
+    )
+
+    SendChatMessage(message, "GUILD")
 end
 
 ---Broadcast achievement completion to guild members

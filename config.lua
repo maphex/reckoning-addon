@@ -3988,5 +3988,8 @@ Private.constants.DISPLAY.POINTS_NAME_SINGULAR = "Mark of Reckoning"
 -- Broadcast your achievements to guild members with the addon (default: true)
 -- Private.constants.ANNOUNCEMENTS.BROADCAST_TO_GUILD = true
 
+-- Send your achievements to guild chat (default: true)
+-- Private.constants.ANNOUNCEMENTS.SEND_GUILD_CHAT = true
+
 -- Show messages when guild members earn achievements (default: true)
 -- Private.constants.ANNOUNCEMENTS.SHOW_GUILD_MESSAGES = true

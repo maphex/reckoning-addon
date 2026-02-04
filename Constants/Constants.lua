@@ -66,6 +66,8 @@ constants.ANNOUNCEMENTS = {
     BROADCAST_TO_GUILD = true,
     -- Whether to show messages when guild members earn achievements
     SHOW_GUILD_MESSAGES = true,
+    -- Whether to send a guild chat message when you earn an achievement
+    SEND_GUILD_CHAT = true,
 }
 
 -------------------------------------------------------------------------------
