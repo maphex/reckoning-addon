@@ -41,6 +41,10 @@ local guildSync = {
     initialSyncDone = false,
     ---@type table Pending data chunks for large messages
     pendingChunks = {},
+    ---@type table<string, number> Requester name -> last response time (throttle)
+    lastResponseToRequester = {},
+    ---@type number Minimum seconds before sending another full response to same requester
+    RESPONSE_COOLDOWN = 60,
 }
 Private.GuildSyncUtils = guildSync
 
@@ -249,11 +253,20 @@ end
 function guildSync:OnSyncRequest(data)
     if not data then return end
 
-    -- Someone requested sync - send them our data
-    -- Add a random delay to prevent everyone responding at once
+    local requester = data.requester
+    if not requester then return end
+
+    -- Throttle: don't send full response to same requester within cooldown
+    local now = time()
+    if self.lastResponseToRequester[requester] and (now - self.lastResponseToRequester[requester]) < self.RESPONSE_COOLDOWN then
+        return
+    end
+    self.lastResponseToRequester[requester] = now
+
+    -- Send our data (random delay to prevent everyone responding at once)
     local delay = math.random(1, 5)
     C_Timer.After(delay, function()
-        self:SendSyncResponse(data.requester)
+        self:SendSyncResponse(requester)
     end)
 end
 
@@ -278,7 +291,7 @@ function guildSync:SendSyncResponse(targetPlayer)
         end
     end
 
-    -- Build our data packet
+    -- Build our data packet (only our own completions - no cache re-broadcast for scalability)
     local myData = {
         name = playerName,
         class = className,
@@ -289,17 +302,8 @@ function guildSync:SendSyncResponse(targetPlayer)
         totalPoints = totalPoints,
     }
 
-    -- Also include cached data from others (so offline players' data propagates)
-    local cachedMembers = {}
-    for name, memberData in pairs(self.memberData) do
-        if name ~= playerName then
-            cachedMembers[name] = memberData
-        end
-    end
-
     Private.CommsUtils:SendMessage(MSG_TYPE.SYNC_RESPONSE, {
         myData = myData,
-        cachedMembers = cachedMembers,
         timestamp = time(),
     }, "GUILD")
 

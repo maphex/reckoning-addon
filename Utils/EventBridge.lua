@@ -36,7 +36,10 @@ local Enums = Private.Enums
 ---| "GOLD_MILESTONE"
 ---| "LEVEL_UP"
 ---| "CREATURE_KILLED"
+---| "FALL_SURVIVED"
+---| "PRIMAL_LOOTED"
 ---| "WEEKLY_RESET"
+---| "ACHIEVEMENT_COMPLETED"
 
 -------------------------------------------------------------------------------
 -- Boss Tracking Data (TBC bosses by instance)
@@ -234,6 +237,9 @@ function eventBridge:Init()
     self.eventFrame:SetScript("OnEvent", function(_, event, ...)
         self:OnWowEvent(event, ...)
     end)
+    self.eventFrame:SetScript("OnUpdate", function(_, elapsed)
+        self:HandleFallUpdate(elapsed)
+    end)
 
     -- Register TBC-compatible WoW events
     self:RegisterWowEvent("PLAYER_ENTERING_WORLD")
@@ -278,6 +284,7 @@ function eventBridge:Init()
         difficulty = nil,
         startTime = nil,
         totalDeaths = 0,
+        wipes = 0,
         encounterActive = false,
         currentBoss = nil,
         currentBossNpcId = nil,
@@ -291,6 +298,12 @@ function eventBridge:Init()
         bgName = nil,
         kills = 0,
         killingBlows = 0,
+        startTime = nil,
+        flagCarriers = {},  -- [playerName] = true for current flag carriers (WSG/EOTS)
+    }
+
+    self.fallingState = {
+        isFalling = false,
         startTime = nil,
     }
 
@@ -505,6 +518,7 @@ function eventBridge:UpdateInstanceState()
             self.dungeonState.difficulty = difficultyIndex == 2 and Enums.Difficulty.Heroic or Enums.Difficulty.Normal
             self.dungeonState.startTime = GetTime()
             self.dungeonState.totalDeaths = 0
+            self.dungeonState.wipes = 0
             self.dungeonState.bossesKilled = {}
             self.dungeonState.encounterActive = false
             self.dungeonState.currentBoss = nil
@@ -634,9 +648,46 @@ function eventBridge:HandleCombatEnd()
     -- Combat ended
     if self.dungeonState.encounterActive then
         -- If we're out of combat but boss didn't die, it's a wipe
+        self.dungeonState.wipes = (self.dungeonState.wipes or 0) + 1
         self.dungeonState.encounterActive = false
         self.dungeonState.currentBoss = nil
         self.dungeonState.currentBossNpcId = nil
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Fall Tracking (There goes my Hero)
+-------------------------------------------------------------------------------
+
+function eventBridge:HandleFallUpdate(elapsed)
+    if type(IsFalling) ~= "function" or (UnitIsDeadOrGhost and UnitIsDeadOrGhost("player")) then
+        return
+    end
+
+    local const = Private.constants
+    local minSeconds = const and const.FALLING and const.FALLING.MIN_SECONDS or 0
+
+    local falling = IsFalling()
+    if falling and not self.fallingState.isFalling then
+        self.fallingState.isFalling = true
+        self.fallingState.startTime = GetTime()
+        return
+    end
+
+    if not falling and self.fallingState.isFalling then
+        self.fallingState.isFalling = false
+        local startTime = self.fallingState.startTime
+        self.fallingState.startTime = nil
+
+        if startTime then
+            local duration = GetTime() - startTime
+            if duration >= minSeconds then
+                self:Fire("FALL_SURVIVED", {
+                    duration = duration,
+                    zone = GetZoneText() or "Unknown",
+                })
+            end
+        end
     end
 end
 
@@ -678,10 +729,23 @@ function eventBridge:HandleCombatLog(...)
         if destType == "Player" then
             self.pvpState.killingBlows = self.pvpState.killingBlows + 1
 
+            local targetType = nil
+            if self.pvpState.flagCarriers and self.pvpState.flagCarriers[destName] then
+                targetType = "flag_carrier"
+                self.pvpState.flagCarriers[destName] = nil
+            end
+            -- Also check name without realm (combat log may use "Name-Realm")
+            local destNameShort = destName and (destName:gsub("%-.*", "")) or ""
+            if not targetType and destNameShort ~= destName and self.pvpState.flagCarriers[destNameShort] then
+                targetType = "flag_carrier"
+                self.pvpState.flagCarriers[destNameShort] = nil
+            end
+
             self:Fire("PVP_KILLING_BLOW", {
                 victimClass = self:GetClassFromGUID(destGUID),  -- May be nil in TBC
                 victimLevel = nil,  -- Not reliably available from GUID in TBC
                 location = GetZoneText() or "Unknown",
+                targetType = targetType,
             })
         elseif destType == "Creature" then
             -- Regular creature kill
@@ -771,12 +835,17 @@ function eventBridge:HandleBossDeath(npcId, bossData, bossName)
     if bossData.isFinalBoss then
         local totalDuration = GetTime() - (self.dungeonState.startTime or GetTime())
 
+        local instanceName = self.dungeonState.instanceName or bossData.instance
+        local totalDeaths = self.dungeonState.totalDeaths
         self:Fire("DUNGEON_CLEARED", {
-            instance = self.dungeonState.instanceName or bossData.instance,
+            instance = instanceName,
+            instanceName = instanceName,  -- alias for config (Always Immortal, The Tower Unbroken, Midnight Rush)
             instanceId = self.dungeonState.instanceId or 0,
             difficulty = self.dungeonState.difficulty or Enums.Difficulty.Normal,
             duration = totalDuration,
-            totalDeaths = self.dungeonState.totalDeaths,
+            totalDeaths = totalDeaths,
+            deaths = totalDeaths,  -- alias for config
+            wipes = self.dungeonState.wipes or 0,
             raidSize = self:GetGroupSize(),
         })
     end
@@ -803,9 +872,7 @@ end
 ---@param guid string
 ---@return number|nil
 function eventBridge:GetClassFromGUID(guid)
-    -- GetPlayerInfoByGUID doesn't exist in TBC
-    -- We can't reliably get class from GUID in TBC without targeting
-    -- Return nil and let achievements handle missing class data
+    -- TODO: GetPlayerInfoByGUID doesn't exist in TBC; would need targeting or another source for victim class
     return nil
 end
 
@@ -813,9 +880,7 @@ end
 ---@param guid string
 ---@return number|nil
 function eventBridge:GetCreatureTypeFromGUID(guid)
-    -- Creature type is not available from GUID in TBC
-    -- Would need to target the unit and use UnitCreatureType()
-    -- Return nil and let achievements handle missing data
+    -- TODO: Creature type not available from GUID in TBC; would need to target unit and use UnitCreatureType()
     return nil
 end
 
@@ -886,11 +951,6 @@ function eventBridge:HandleQuestTurnedIn(questId, xpReward, moneyReward)
     })
 end
 
-function eventBridge:HandleReputationChanged()
-    -- Would need to track previous values to detect changes
-    -- For now, just note that rep changed
-end
-
 -------------------------------------------------------------------------------
 -- Equipment Handling
 -------------------------------------------------------------------------------
@@ -910,6 +970,7 @@ function eventBridge:HandleEquipmentChanged(slot, hasItem)
                     itemId = itemId,
                     itemName = itemName or "Unknown",
                     itemLevel = itemLevel or 0,
+                    quality = quality,  -- Matches Enums.ItemQuality (4 = Epic)
                     slot = slot,  -- Maps directly to Enums.EquipSlot values
                 })
             end
@@ -1177,6 +1238,7 @@ function eventBridge:HandleLootMessage(message)
         self.badgeCount = (self.badgeCount or 0) + 1
 
         self:Fire("BADGE_EARNED", {
+            badgeType = "Badge of Justice",
             count = 1,
             totalCount = self.badgeCount,
             source = self.dungeonState.encounterActive and Enums.BadgeSource.Boss or Enums.BadgeSource.Quest,
@@ -1197,7 +1259,7 @@ function eventBridge:HandleLootMessage(message)
                     fishId = itemId,
                     fishName = itemName,
                     zone = GetZoneText() or "Unknown",
-                    poolType = self.fishingState.poolType or Enums.FishPoolType.OpenWater,  -- Would need more logic for schools
+                    poolType = self.fishingState.poolType or Enums.FishPoolType.OpenWater,  -- TODO: detect school vs open water if needed
                 })
                 self.fishingState.isFishing = false
             end
@@ -1209,6 +1271,15 @@ function eventBridge:HandleLootMessage(message)
                     keyId = itemId,
                     keyName = keyData.name,
                     keyType = keyData.keyType,  -- Enums.KeyType.Heroic or .Attunement
+                })
+            end
+
+            -- Check for primal loot (Mana Matters, Playing with Fire, Primal Procurer weekly achievements)
+            if itemName and itemName:find("Primal") then
+                self:Fire("PRIMAL_LOOTED", {
+                    itemId = itemId,
+                    itemName = itemName,
+                    zone = GetZoneText() or "Unknown",
                 })
             end
 
@@ -1233,7 +1304,7 @@ function eventBridge:HandleLootMessage(message)
                         itemName = itemName,
                         profession = profession,
                         skillLevel = skillLevel or 0,
-                        count = 1,  -- Single craft, multi-craft detection would need more logic
+                        count = 1,  -- TODO: multi-craft detection would need CHAT_MSG_LOOT quantity or similar
                     })
                 end
                 self.craftingState.lastCraftTime = nil
@@ -1243,9 +1314,11 @@ function eventBridge:HandleLootMessage(message)
             if self.disenchantState.isDisenchanting then
                 local isEnchantingMat = self:IsEnchantingMaterial(itemId)
                 if isEnchantingMat then
+                    local _, _, _, resultItemLevel = GetItemInfo(itemId)
                     self:Fire("ITEM_DISENCHANTED", {
                         resultItemId = itemId,
                         resultItemName = itemName,
+                        resultItemLevel = resultItemLevel or 0,
                     })
                     self.disenchantState.isDisenchanting = false
                 end
@@ -1527,6 +1600,7 @@ function eventBridge:HandleBattlefieldUpdate()
         self.pvpState.kills = 0
         self.pvpState.killingBlows = 0
         self.pvpState.startTime = nil
+        self.pvpState.flagCarriers = {}
     end
 end
 
@@ -1583,6 +1657,20 @@ end
 function eventBridge:HandleBGSystemMessage(message)
     if not message or not self.pvpState.inBattleground then return end
 
+    -- Track flag carriers for targetType = "flag_carrier" (Stormtrooper achievement)
+    if self.pvpState.flagCarriers then
+        local pickupName = message:match("^(.+) picks up the flag") or message:match("picked up by (.+)%.?$") or message:match("picked up by (.+)")
+        if pickupName and pickupName ~= "" then
+            local name = pickupName:gsub("^%s+", ""):gsub("%s+$", "")
+            if name ~= "" then
+                self.pvpState.flagCarriers[name] = true
+            end
+        end
+        if message:find("flag was returned") or message:find("captured the flag") then
+            self.pvpState.flagCarriers = {}
+        end
+    end
+
     -- Track objective captures
     local capturePatterns = {
         "has taken the",
@@ -1623,7 +1711,7 @@ function eventBridge:HandleSystemMessage(message)
                 tokenType = tokenName,
                 tokenId = tokenId,
                 count = 1,
-                totalCount = 0,  -- Would need GetItemCount to track
+                totalCount = 0,  -- TODO: use GetItemCount(tokenId) if available for this client
             })
             break
         end
@@ -1714,6 +1802,7 @@ function eventBridge:HandleArenaTeamUpdate()
                         self:Fire("ARENA_RATING_MILESTONE", {
                             bracket = bracketSize,
                             rating = newRating,
+                            ratingGain = newRating - oldRating,
                             milestone = milestone,
                             teamName = teamName,
                         })
@@ -1737,6 +1826,32 @@ function eventBridge:HandleArenaTeamUpdate()
     end
 end
 
+---Returns true if the arena team for the given bracket is all guild members (best-effort TBC)
+---@param bracket number 2, 3, or 5 (Enums.ArenaBracket)
+---@return boolean
+function eventBridge:IsArenaTeamGuildTeam(bracket)
+    if not IsInGuild() then return false end
+    local teamIndex = (bracket == 2 and 1) or (bracket == 3 and 2) or (bracket == 5 and 3)
+    if not teamIndex then return false end
+    local numMembers = GetNumArenaTeamMembers and GetNumArenaTeamMembers(teamIndex)
+    if not numMembers or numMembers == 0 then return false end
+    local guildNames = {}
+    for i = 1, GetNumGuildMembers and GetNumGuildMembers() or 0 do
+        local name = GetGuildRosterInfo and select(1, GetGuildRosterInfo(i))
+        if name then
+            guildNames[name:gsub("%-.*", "")] = true
+            guildNames[name] = true
+        end
+    end
+    for i = 1, numMembers do
+        local name = GetArenaTeamRosterInfo and select(1, GetArenaTeamRosterInfo(teamIndex, i))
+        if name and not guildNames[name] and not guildNames[name:gsub("%-.*", "")] then
+            return false
+        end
+    end
+    return true
+end
+
 function eventBridge:CheckArenaMatchEnd()
     if not self.arenaState.inArena then return end
 
@@ -1745,13 +1860,16 @@ function eventBridge:CheckArenaMatchEnd()
     if bracket and self.arenaRatings[bracket] then
         local duration = GetTime() - (self.arenaState.startTime or GetTime())
         local currentRating = self.arenaRatings[bracket].rating or 0
+        local ok, guildTeam = pcall(function() return self:IsArenaTeamGuildTeam(bracket) end)
+        if not ok then guildTeam = false end
 
         self:Fire("ARENA_MATCH_END", {
             bracket = bracket,  -- Enums.ArenaBracket (2, 3, or 5)
-            result = 1, -- Would need more logic to determine win/loss (Enums.BattlegroundResult)
-            ratingChange = 0, -- Would need to track before/after
+            result = 1, -- TODO: determine win/loss from rating delta or combat log
+            ratingChange = 0, -- TODO: track rating before/after match for delta
             newRating = currentRating,
             duration = duration,
+            guildTeam = guildTeam,
         })
     end
 

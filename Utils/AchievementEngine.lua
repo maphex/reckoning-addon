@@ -182,8 +182,22 @@ function engine:SyncUIFromLoadedData()
     -- Update all achievements in UI
     for id, achievement in pairs(aUtils.achievements) do
         local completed = self.completedAchievements[id]
-        local current = self.progressData[id] or 0
-        local total = achievement.progress and achievement.progress.required or 1
+        local progress = achievement.progress
+        local total = progress and progress.required or 1
+        local current
+        if progress and progress.type == "criteria" then
+            current = self:CountCompletedCriteria(self:GetCriteriaProgress(id))
+        elseif progress and progress.type == "meta" and progress.subCategory then
+            local ids = aUtils:GetAchievementIdsInSubCategory(progress.subCategory)
+            current = 0
+            for _, aid in ipairs(ids) do
+                if aid ~= id and self.completedAchievements[aid] then
+                    current = current + 1
+                end
+            end
+        else
+            current = self.progressData[id] or 0
+        end
 
         if completed then
             Data:SetAchievementProgress(id, total, total, true)
@@ -291,7 +305,7 @@ function engine:OnBridgeEvent(event, payload)
             if debugUtils then
                 debugUtils:LogTriggerEval(achievement, event)
             end
-            self:EvaluateAchievement(achievement, payload)
+            self:EvaluateAchievement(achievement, payload, event)
         end
     end
 end
@@ -317,7 +331,8 @@ end
 ---Evaluate if an achievement should progress or complete
 ---@param achievement Achievement
 ---@param payload table
-function engine:EvaluateAchievement(achievement, payload)
+---@param event string Bridge event name (for criteria key resolution)
+function engine:EvaluateAchievement(achievement, payload, event)
     local trigger = achievement.trigger
 
     -- Check if we have a criteriaSet (multiple conditions to fulfill)
@@ -333,8 +348,15 @@ function engine:EvaluateAchievement(achievement, payload)
         end
     end
 
+    -- Meta achievements: progress = count of completed in subCategory
+    local progress = achievement.progress
+    if progress and progress.type == "meta" then
+        self:UpdateMetaProgress(achievement)
+        return
+    end
+
     -- Conditions met! Update progress
-    self:UpdateProgress(achievement, payload)
+    self:UpdateProgress(achievement, payload, event or trigger.event)
 end
 
 ---Evaluate a criteriaSet (multiple independent conditions)
@@ -371,7 +393,53 @@ function engine:EvaluateCriteriaSet(achievement, payload)
     end
 end
 
+---Normalize condition expected value when config uses string (e.g. "Exalted") and payload uses enum number
+---Returns enum value for known keys, or nil to fall back to direct comparison
+---@param key string
+---@param expected string|number
+---@return number|nil
+function engine:NormalizeExpectedForCondition(key, expected)
+    if type(expected) ~= "string" then return nil end
+
+    local Enums = Private.Enums
+    if not Enums then return nil end
+
+    if key == "standing" then
+        local map = {
+            Hated = Enums.Standing.Hated,
+            Hostile = Enums.Standing.Hostile,
+            Unfriendly = Enums.Standing.Unfriendly,
+            Neutral = Enums.Standing.Neutral,
+            Friendly = Enums.Standing.Friendly,
+            Honored = Enums.Standing.Honored,
+            Revered = Enums.Standing.Revered,
+            Exalted = Enums.Standing.Exalted,
+        }
+        return map[expected]
+    end
+
+    if key == "rollType" then
+        local map = { need = Enums.RollType.Need, greed = Enums.RollType.Greed, disenchant = Enums.RollType.Disenchant }
+        return map[expected and expected:lower()]
+    end
+
+    if key == "objectiveType" then
+        local map = {
+            flag = Enums.ObjectiveType.Flag,
+            base = Enums.ObjectiveType.Base,
+            tower = Enums.ObjectiveType.Tower,
+            flag_return = Enums.ObjectiveType.Flag,
+            tower_defense = Enums.ObjectiveType.Tower,
+        }
+        return map[expected and expected:lower()]
+    end
+
+    -- targetType and other string keys: no enum mapping, use direct comparison
+    return nil
+end
+
 ---Check if all conditions match the payload
+---Accepts both string and enum in config for standing, rollType, objectiveType (normalized in engine)
 ---@param conditions table
 ---@param payload table
 ---@return boolean
@@ -413,8 +481,12 @@ function engine:CheckConditions(conditions, payload)
                 debugUtils:LogCondition(key, "{list}", tostring(actual), true)
             end
         else
-            -- Direct comparison
-            if actual ~= expected then
+            -- Direct comparison; normalize string expected to enum for known keys
+            local compareExpected = self:NormalizeExpectedForCondition(key, expected)
+            if compareExpected == nil then
+                compareExpected = expected
+            end
+            if actual ~= compareExpected then
                 if debugUtils then
                     debugUtils:LogCondition(key, tostring(expected), tostring(actual), false)
                 end
@@ -433,10 +505,44 @@ end
 -- Progress Tracking
 -------------------------------------------------------------------------------
 
+---Resolve the criteria key for progress.type == "criteria" (unique-count achievements)
+---Uses progress.criteriaKey if set, otherwise event-based default.
+---@param achievement Achievement
+---@param payload table
+---@param event string
+---@return string|nil key Unique key for this criteria slot, or nil if not determinable
+function engine:GetCriteriaKey(achievement, payload, event)
+    local progress = achievement.progress
+    if not progress or progress.type ~= "criteria" then return nil end
+
+    local keyName = progress.criteriaKey
+    if keyName and payload[keyName] ~= nil then
+        return tostring(payload[keyName])
+    end
+
+    -- Event-based default payload field for unique criteria
+    local defaultKeyByEvent = {
+        DUNGEON_CLEARED = "instance",
+        DUNGEON_BOSS_KILLED = "bossName",
+        ZONE_EXPLORED = "zone",
+        PVP_OBJECTIVE_CAPTURED = "objectiveName",
+        PVP_KILLING_BLOW = "victimClass",
+        BATTLEGROUND_MATCH_END = "battleground",
+        QUEST_COMPLETED = "questId",
+    }
+    keyName = defaultKeyByEvent[event]
+    if keyName and payload[keyName] ~= nil then
+        return tostring(payload[keyName])
+    end
+
+    return nil
+end
+
 ---Update progress for an achievement
 ---@param achievement Achievement
 ---@param payload table
-function engine:UpdateProgress(achievement, payload)
+---@param event string Bridge event name (for criteria key resolution)
+function engine:UpdateProgress(achievement, payload, event)
     local progress = achievement.progress
     local debugUtils = Private.DebugUtils
 
@@ -463,6 +569,72 @@ function engine:UpdateProgress(achievement, payload)
         else
             self:UpdateUIProgress(achievement.id, current, progress.required)
         end
+        return
+    end
+
+    if progress.type == "criteria" then
+        local key = self:GetCriteriaKey(achievement, payload, event or achievement.trigger.event)
+        if not key or key == "" then
+            if debugUtils then
+                debugUtils:Log("PROGRESS", "[%d] %s: criteria key missing from payload", achievement.id, achievement.name)
+            end
+            return
+        end
+
+        local crit = self:GetCriteriaProgress(achievement.id)
+        if crit[key] then
+            if debugUtils then
+                debugUtils:Log("PROGRESS", "[%d] %s: criteria already counted for key %s", achievement.id, achievement.name, key)
+            end
+            return
+        end
+
+        crit[key] = true
+        self:SaveCriteriaProgress(achievement.id, crit)
+        local n = self:CountCompletedCriteria(crit)
+        local required = progress.required or 1
+
+        if debugUtils then
+            debugUtils:LogProgress(achievement.id, achievement.name, n, required)
+        end
+
+        if n >= required then
+            self:CompleteAchievement(achievement)
+        else
+            self:UpdateUIProgress(achievement.id, n, required)
+        end
+    end
+end
+
+---Update progress for meta achievements (count of completed achievements in subCategory)
+---@param achievement Achievement with progress.type == "meta"
+function engine:UpdateMetaProgress(achievement)
+    local progress = achievement.progress
+    if not progress or progress.type ~= "meta" or not progress.subCategory then return end
+    if self.completedAchievements[achievement.id] then return end
+
+    local aUtils = Private.AchievementUtils
+    if not aUtils then return end
+    local ids = aUtils:GetAchievementIdsInSubCategory(progress.subCategory)
+    local count = 0
+    for _, id in ipairs(ids) do
+        if id ~= achievement.id and self.completedAchievements[id] then
+            count = count + 1
+        end
+    end
+
+    local required = progress.required or 1
+    self:SetAchievementProgress(achievement.id, count)
+
+    local debugUtils = Private.DebugUtils
+    if debugUtils then
+        debugUtils:LogProgress(achievement.id, achievement.name, count, required)
+    end
+
+    if count >= required then
+        self:CompleteAchievement(achievement)
+    else
+        self:UpdateUIProgress(achievement.id, count, required)
     end
 end
 
@@ -590,6 +762,16 @@ function engine:CompleteAchievement(achievement)
     local callbacks = Private.CallbackUtils:GetCallbacks("AchievementCompleted")
     for _, cb in ipairs(callbacks) do
         cb:Trigger(achievementId, achievement)
+    end
+
+    -- Fire bridge event for meta achievements (e.g. Karazhan Champion)
+    local eventBridge = Private.EventBridge
+    if eventBridge and achievement.subCategory then
+        eventBridge:Fire("ACHIEVEMENT_COMPLETED", {
+            achievementId = achievementId,
+            category = achievement.category,
+            subCategory = achievement.subCategory,
+        })
     end
 
     -- Print achievement link to chat

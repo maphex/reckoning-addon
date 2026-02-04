@@ -2,6 +2,7 @@
 local Private = select(2, ...)
 local aUtils = Private.AchievementUtils
 local Enums = Private.Enums
+local const = Private.constants
 
 -------------------------------------------------------------------------------
 -- Category Registration
@@ -79,6 +80,7 @@ aUtils:RegisterAchievements({
 		subCategory = 10,
 		icon = 134530,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 1,
 		trigger = {
 			event = "DUNGEON_CLEARED",
 			conditions = {
@@ -97,6 +99,7 @@ aUtils:RegisterAchievements({
 		subCategory = 10,
 		icon = 136050,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 1,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = {
@@ -119,11 +122,11 @@ aUtils:RegisterAchievements({
 		subCategory = 10,
 		icon = 135383,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 1,
 		trigger = {
-			event = "DUNGEON_BOSS_KILLED",
+			event = "DUNGEON_CLEARED",
 			conditions = {
-				bossName = "Exarch Maladaar",
-				instance = "Auchenai Crypts",
+				instanceName = "Auchenai Crypts",
 				difficulty = Enums.Difficulty.Heroic,
 				totalDeaths = 0
 			}
@@ -138,6 +141,7 @@ aUtils:RegisterAchievements({
 		subCategory = 10,
 		icon = 136221,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 1,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = {
@@ -160,6 +164,7 @@ aUtils:RegisterAchievements({
 		subCategory = 10,
 		icon = 134530,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 1,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = {
@@ -1666,6 +1671,7 @@ aUtils:RegisterAchievements({
 		subCategory = 60,
 		icon = 133904,
 		cadence = Enums.Cadence.Weekly,
+		startWeek = 1,
 		trigger = {
 			event = "ITEM_CRAFTED",
 			conditions = { profession = Enums.Profession.Cooking }
@@ -1675,15 +1681,16 @@ aUtils:RegisterAchievements({
 	{
 		id = 6002,
 		name = "Primal Procurer (Shadow)",
-		description = "Kill 25 Void creatures in Outland",
+		description = "Loot 25 Primal Shadow in Outland",
 		points = 10,
 		category = 6,
 		subCategory = 60,
 		icon = 132851,
 		cadence = Enums.Cadence.Weekly,
+		startWeek = 1,
 		trigger = {
-			event = "CREATURE_KILLED",
-			conditions = { creatureType = "Void" }
+			event = "PRIMAL_LOOTED",
+			conditions = { itemName = "Primal Shadow" }
 		},
 		progress = { type = "count", required = 25 }
 	},
@@ -1698,7 +1705,10 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Tailoring }
+			conditions = {
+				profession = Enums.Profession.Tailoring,
+				itemName = { "Primal Mooncloth", "Spellcloth", "Shadowcloth" }
+			}
 		},
 		progress = { type = "count", required = 3 }
 	},
@@ -1720,15 +1730,15 @@ aUtils:RegisterAchievements({
 	{
 		id = 6005,
 		name = "Playing with Fire",
-		description = "Kill 25 Fire Elementals in Outland",
+		description = "Loot 25 Primal Fire in Outland",
 		points = 10,
 		category = 6,
 		subCategory = 60,
 		icon = 132847,
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
-			event = "CREATURE_KILLED",
-			conditions = { creatureType = "Fire Elemental" }
+			event = "PRIMAL_LOOTED",
+			conditions = { itemName = "Primal Fire" }
 		},
 		progress = { type = "count", required = 25 }
 	},
@@ -1743,7 +1753,7 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "CREATURE_KILLED",
-			conditions = { creatureType = "Air Elemental" }
+			conditions = { creatureName = function(n) return n and n:find("Air") and n:find("Elemental") end }
 		},
 		progress = { type = "count", required = 25 }
 	},
@@ -1765,15 +1775,15 @@ aUtils:RegisterAchievements({
 	{
 		id = 6008,
 		name = "Mana Matters",
-		description = "Kill 25 Mana creatures in Netherstorm",
+		description = "Loot 25 Primal Mana in Netherstorm",
 		points = 10,
 		category = 6,
 		subCategory = 60,
 		icon = 132849,
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
-			event = "CREATURE_KILLED",
-			conditions = { zone = "Netherstorm" }
+			event = "PRIMAL_LOOTED",
+			conditions = { itemName = "Primal Mana", zone = "Netherstorm" }
 		},
 		progress = { type = "count", required = 25 }
 	},
@@ -1818,7 +1828,8 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "ITEM_DISENCHANTED",
-			conditions = { quality = 3 }
+			-- TODO: Source item quality/level not available; resultItemLevel is a best-effort proxy.
+			conditions = { resultItemLevel = function(l) return l and l >= 65 end }
 		},
 		progress = { type = "count", required = 15 }
 	},
@@ -1870,7 +1881,7 @@ aUtils:RegisterAchievements({
 	{
 		id = 6015,
 		name = "Leather for Days",
-		description = "Skin 40 creatures in Outland",
+		description = "Gather 40 Knothide Leather",
 		points = 10,
 		category = 6,
 		subCategory = 60,
@@ -1878,7 +1889,7 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "RESOURCE_GATHERED",
-			conditions = { gatherType = Enums.GatherType.Skinning }
+			conditions = { gatherType = Enums.GatherType.Skinning, itemName = "Knothide Leather" }
 		},
 		progress = { type = "count", required = 40 }
 	},
@@ -2107,7 +2118,8 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "ITEM_DISENCHANTED",
-			conditions = {}
+			-- TODO: Source item level not available; resultItemLevel is a best-effort proxy.
+			conditions = { resultItemLevel = function(l) return l and l >= 60 end }
 		},
 		progress = { type = "count", required = 500 }
 	},
@@ -3458,6 +3470,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 136150,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 2,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Prince Malchezaar" }
@@ -3472,6 +3485,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 134179,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 2,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Moroes", duration = function(d) return d <= 80 end }
@@ -3486,6 +3500,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 133733,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 2,
 		trigger = {
 			event = "QUEST_COMPLETED",
 			conditions = {}
@@ -3501,6 +3516,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 133886,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 2,
 		trigger = {
 			event = "QUEST_COMPLETED",
 			conditions = {}
@@ -3515,6 +3531,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 132224,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 2,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "The Big Bad Wolf" }
@@ -3529,6 +3546,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 136144,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 2,
 		trigger = {
 			event = "QUEST_COMPLETED",
 			conditions = {}
@@ -3543,6 +3561,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 136018,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 2,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "The Crone" }
@@ -3557,6 +3576,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 133839,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 2,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Nightbane" }
@@ -3571,6 +3591,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 132196,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 5,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Hyakiss the Lurker" }
@@ -3585,6 +3606,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 135788,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 5,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Prince Malchezaar", duration = function(d) return d <= 120 end }
@@ -3599,6 +3621,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 135732,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 4,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "The Curator", duration = function(d) return d <= 90 end }
@@ -3613,6 +3636,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 135981,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 6,
 		trigger = {
 			event = "DUNGEON_CLEARED",
 			conditions = { instanceName = "Karazhan", deaths = 0 }
@@ -3627,6 +3651,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 132238,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 3,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Attumen the Huntsman", duration = function(d) return d <= 70 end }
@@ -3641,6 +3666,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 135981,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 3,
 		trigger = {
 			event = "DUNGEON_CLEARED",
 			conditions = { instanceName = "Karazhan", wipes = 0 }
@@ -3655,6 +3681,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 134155,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 4,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Netherspite", deaths = 0 }
@@ -3669,6 +3696,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 135926,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 4,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Shade of Aran" }
@@ -3683,6 +3711,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 135831,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 4,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Prince Malchezaar" }
@@ -3697,6 +3726,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 135921,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 4,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Maiden of Virtue", duration = function(d) return d <= 45 end }
@@ -3711,6 +3741,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 134390,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 5,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Shade of Aran" }
@@ -3726,10 +3757,10 @@ aUtils:RegisterAchievements({
 		icon = 135958,
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
-			event = "QUEST_COMPLETED",
-			conditions = {}
+			event = "ACHIEVEMENT_COMPLETED",
+			conditions = { subCategory = 20 }
 		},
-		progress = { type = "criteria", required = 23 }
+		progress = { type = "meta", subCategory = 20, required = 23 }
 	},
 	{
 		id = 2025,
@@ -3740,6 +3771,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 132307,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 6,
 		trigger = {
 			event = "DUNGEON_CLEARED",
 			conditions = { instanceName = "Karazhan", duration = function(d) return d <= 5100 end }
@@ -3754,6 +3786,7 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 136218,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 5,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Terestian Illhoof" }
@@ -3770,6 +3803,7 @@ aUtils:RegisterAchievements({
 		subCategory = 21,
 		icon = 135824,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 2,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Magtheridon" }
@@ -3784,6 +3818,7 @@ aUtils:RegisterAchievements({
 		subCategory = 21,
 		icon = 135237,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 2,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Gruul the Dragonkiller" }
@@ -3798,6 +3833,7 @@ aUtils:RegisterAchievements({
 		subCategory = 21,
 		icon = 132451,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 2,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Gruul the Dragonkiller" }
@@ -3812,6 +3848,7 @@ aUtils:RegisterAchievements({
 		subCategory = 21,
 		icon = 136219,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 2,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Magtheridon" }
@@ -3826,6 +3863,7 @@ aUtils:RegisterAchievements({
 		subCategory = 21,
 		icon = 133484,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 3,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "High King Maulgar", duration = function(d) return d <= 60 end }
@@ -3842,6 +3880,7 @@ aUtils:RegisterAchievements({
 		subCategory = 22,
 		icon = 135862,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 6,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Lady Vashj" }
@@ -3856,6 +3895,7 @@ aUtils:RegisterAchievements({
 		subCategory = 22,
 		icon = 135734,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 6,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Kael'thas Sunstrider" }
@@ -3870,9 +3910,13 @@ aUtils:RegisterAchievements({
 		subCategory = 22,
 		icon = 135992,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 6,
 		trigger = {
-			event = "QUEST_COMPLETED",
-			conditions = {}
+			event = "FALL_SURVIVED",
+			conditions = {
+				zone = "Serpentshrine Cavern",
+				duration = function(d) return d >= (const and const.FALLING and const.FALLING.MIN_SECONDS or 0) end
+			}
 		}
 	},
 
@@ -3886,6 +3930,7 @@ aUtils:RegisterAchievements({
 		subCategory = 23,
 		icon = 136149,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 6,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Archimonde" }
@@ -3900,6 +3945,7 @@ aUtils:RegisterAchievements({
 		subCategory = 23,
 		icon = 135561,
 		cadence = Enums.Cadence.AllTime,
+		startWeek = 6,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Illidan Stormrage" }

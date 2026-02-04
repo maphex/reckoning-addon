@@ -378,6 +378,7 @@ end
 -------------------------------------------------------------------------------
 
 ---Get the current week number based on server reset
+---Week 0 = pre-launch (before TBC_ANNIVERSARY_EPOCH). IsAchievementAvailable treats week 0 as unavailable.
 ---@return number weekNumber
 function databaseUtils:GetCurrentWeek()
     -- Calculate weeks since TBC Anniversary launch (February 5, 2026)
@@ -388,7 +389,7 @@ function databaseUtils:GetCurrentWeek()
     local now = time()
     local secondsSinceLaunch = now - TBC_ANNIVERSARY_EPOCH
 
-    -- If before launch, return week 0
+    -- Before launch: return 0 so week gating can treat all time-limited achievements as unavailable
     if secondsSinceLaunch < 0 then
         return 0
     end

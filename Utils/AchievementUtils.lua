@@ -22,8 +22,10 @@ local Enums = Private.Enums
 ---@field criteriaSet? table[]
 
 ---@class AchievementProgress
----@field type "count"|"criteria"
+---@field type "count"|"criteria"|"meta"
 ---@field required? number
+---@field criteriaKey? string Payload field name for unique criteria (e.g. "instance", "zone")
+---@field subCategory? number For type "meta", count completed achievements in this subCategory
 
 ---@class AchievementFailCondition
 ---@field event string
@@ -39,6 +41,7 @@ local Enums = Private.Enums
 ---@field icon number|string
 ---@field cadence number
 ---@field startWeek? number
+---@field endWeek? number
 ---@field trigger AchievementTrigger
 ---@field progress? AchievementProgress
 ---@field failCondition? AchievementFailCondition
@@ -176,11 +179,43 @@ function achievementUtils:GetAchievementsForFailEvent(event)
     return self.achievementsByFailEvent[event] or {}
 end
 
+---Get all achievement IDs in a subCategory (for meta progress)
+---@param subCategory number
+---@return number[]
+function achievementUtils:GetAchievementIdsInSubCategory(subCategory)
+    local ids = {}
+    for id, achievement in pairs(self.achievements) do
+        if achievement.subCategory == subCategory then
+            table.insert(ids, id)
+        end
+    end
+    return ids
+end
+
 ---Check if an achievement is available based on current week
+---Week 0 (pre-launch) is treated as unavailable for all time-limited achievements.
+---If endWeek is set (OneTime cadence), achievement is only available when currentWeek is in [startWeek, endWeek].
 ---@param achievement Achievement
 ---@return boolean
 function achievementUtils:IsAchievementAvailable(achievement)
-    return self.currentWeek >= (achievement.startWeek or 1)
+    local week = self.currentWeek
+    local startWeek = achievement.startWeek or 1
+
+    -- Pre-launch: no time-limited availability
+    if week <= 0 then
+        return false
+    end
+
+    if week < startWeek then
+        return false
+    end
+
+    local endWeek = achievement.endWeek
+    if endWeek and week > endWeek then
+        return false
+    end
+
+    return true
 end
 
 ---Set the current server week
