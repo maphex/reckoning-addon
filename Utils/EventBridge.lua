@@ -303,6 +303,7 @@ function eventBridge:Init()
         startTime = nil,
         flagCarriers = {},  -- [playerName] = true for current flag carriers (WSG/EOTS)
         pendingAssaults = {}, -- [objectiveName] = { player = string, time = number } for AB claim->capture
+        pendingObjectiveInteraction = nil, -- { time = number, objectiveName = string } for AV capture correlation
     }
 
     self.fallingState = {
@@ -556,6 +557,7 @@ function eventBridge:UpdateInstanceState()
             self.pvpState.kills = 0
             self.pvpState.killingBlows = 0
             self.pvpState.pendingAssaults = {}
+            self.pvpState.pendingObjectiveInteraction = nil
 
             self:Fire("BATTLEGROUND_MATCH_START", {
                 battleground = instanceName,
@@ -1102,6 +1104,19 @@ function eventBridge:HandleSpellcastSucceeded(unit, castGUID, spellId)
     if spellName == "Fishing" then
         self.fishingState.isFishing = true
         self.fishingState.castTime = GetTime()
+        return
+    end
+
+    -- AV capture interaction: correlate "Opening" with later faction message
+    if spellName == "Opening" and self.pvpState.inBattleground and self.pvpState.bgName == "Alterac Valley" then
+        local objectiveName = nil
+        if type(UnitName) == "function" then
+            objectiveName = UnitName("target")
+        end
+        self.pvpState.pendingObjectiveInteraction = {
+            time = GetTime(),
+            objectiveName = objectiveName,
+        }
         return
     end
 
@@ -1717,6 +1732,31 @@ function eventBridge:HandleBGSystemMessage(message)
     local lowerMessage = message:lower()
     local objectiveType, objectiveName = self:DetectObjectiveType(message)
 
+    -- Alterac Valley: faction messages are generic; correlate with recent "Opening" cast
+    if self.pvpState.bgName == "Alterac Valley" then
+        if lowerMessage:find("has taken the") or lowerMessage:find("has captured the") then
+            local pending = self.pvpState.pendingObjectiveInteraction
+            if pending and pending.time then
+                local elapsed = GetTime() - pending.time
+                local withinWindow = elapsed <= 2.5
+                if withinWindow then
+                    local match = true
+                    if pending.objectiveName and pending.objectiveName ~= "" and objectiveName and objectiveName ~= "Unknown" then
+                        match = pending.objectiveName:lower():find(objectiveName:lower(), 1, true) ~= nil
+                    end
+                    if match and objectiveType == Enums.ObjectiveType.Tower then
+                        self:Fire("PVP_OBJECTIVE_CAPTURED", {
+                            objectiveType = objectiveType,
+                            location = self.pvpState.bgName or GetZoneText() or "Unknown",
+                            objectiveName = objectiveName or "Unknown",
+                        })
+                    end
+                end
+            end
+            self.pvpState.pendingObjectiveInteraction = nil
+        end
+    end
+
     -- Arathi Basin: "claims the" assault then "has taken the" capture
     if self.pvpState.bgName == "Arathi Basin" then
         local claimant = message:match("^(.+) claims the") or message:match("^(.+) has assaulted the")
@@ -1806,6 +1846,23 @@ function eventBridge:DetectObjectiveType(message)
     local objectiveType = 2  -- Default to Base
     local objectiveName = "Unknown"
     local lowerMessage = message:lower()
+
+    local avObjectives = {
+        ["iceblood tower"] = "Iceblood Tower",
+        ["tower point"] = "Tower Point",
+        ["east frostwolf tower"] = "East Frostwolf Tower",
+        ["west frostwolf tower"] = "West Frostwolf Tower",
+        ["stonehearth bunker"] = "Stonehearth Bunker",
+        ["icewing bunker"] = "Icewing Bunker",
+    }
+
+    for key, display in pairs(avObjectives) do
+        if lowerMessage:find(key) then
+            objectiveType = 3
+            objectiveName = display
+            return objectiveType, objectiveName
+        end
+    end
 
     -- AB bases
     if lowerMessage:find("farm") then
