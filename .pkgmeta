@@ -1,0 +1,18 @@
+package-as: Reckoning
+
+ignore:
+  - .github
+  - .gitignore
+  - .pkgmeta
+  - .vscode
+  - docs
+  - inspo
+  - Utils/DebugCommands.lua
+  - Utils/CommandUtils_Dev.lua
+  - Libs/Rasu-Annotations.lua
+  - "*.csv"
+  - "*.md"
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown

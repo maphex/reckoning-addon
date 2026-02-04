@@ -679,18 +679,16 @@ function eventBridge:HandleCombatLog(...)
             self.pvpState.killingBlows = self.pvpState.killingBlows + 1
 
             self:Fire("PVP_KILLING_BLOW", {
-                victimClass = self:GetClassFromGUID(destGUID),  -- May be nil in TBC
-                victimLevel = nil,  -- Not reliably available from GUID in TBC
+                victimClass = self:GetClassFromGUID(destGUID),
+                victimLevel = self:GetLevelFromGUID(destGUID),  -- Not reliably available from GUID in TBC
                 location = GetZoneText() or "Unknown",
             })
         elseif destType == "Creature" then
             -- Regular creature kill
             local npcId = self:GetNpcIdFromGUID(destGUID)
-            local creatureType = self:GetCreatureTypeFromGUID(destGUID)
 
             self:Fire("CREATURE_KILLED", {
                 creatureName = destName,
-                creatureType = creatureType,  -- Enums.CreatureType value
                 level = 0,  -- Level not available from GUID in TBC
             })
         end
@@ -723,7 +721,7 @@ function eventBridge:HandleCombatLog(...)
 
             local isKillingBlow = (sourceGUID == playerGUID)
             self:Fire("PVP_KILL", {
-                victimClass = self:GetClassFromGUID(destGUID),  -- May be nil in TBC
+                victimClass = self:GetClassFromGUID(destGUID),
                 victimLevel = nil,  -- Not reliably available from GUID in TBC
                 location = GetZoneText() or "Unknown",
                 isKillingBlow = isKillingBlow,
@@ -799,24 +797,30 @@ function eventBridge:GetNpcIdFromGUID(guid)
     return nil
 end
 
----Get class enum from player GUID (TBC-compatible)
----@param guid string
----@return number|nil
-function eventBridge:GetClassFromGUID(guid)
-    -- GetPlayerInfoByGUID doesn't exist in TBC
-    -- We can't reliably get class from GUID in TBC without targeting
-    -- Return nil and let achievements handle missing class data
-    return nil
+
+local CLASS_NAME_TO_ENUM = {}
+for i = 1, GetNumClasses() do
+    local className = GetClassInfo(i)
+    CLASS_NAME_TO_ENUM[className] = i
 end
 
----Get creature type from GUID (TBC-compatible)
+---Get class enum from player GUID (TBC-compatible)
 ---@param guid string
----@return number|nil
-function eventBridge:GetCreatureTypeFromGUID(guid)
-    -- Creature type is not available from GUID in TBC
-    -- Would need to target the unit and use UnitCreatureType()
-    -- Return nil and let achievements handle missing data
-    return nil
+---@return Enums.Class|nil
+function eventBridge:GetClassFromGUID(guid)
+    local className = GetPlayerInfoByGUID(guid)
+    return CLASS_NAME_TO_ENUM[className]
+end
+
+--- Get level from player GUID (TBC-compatible)
+---@param guid WOWGUID
+---@return number
+function eventBridge:GetLevelFromGUID(guid)
+    local unit = UnitTokenFromGUID(guid)
+    if unit then
+        return UnitLevel(unit)
+    end
+    return 0
 end
 
 ---Get group size (TBC-compatible)
