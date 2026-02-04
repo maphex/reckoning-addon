@@ -3,6 +3,10 @@ local Private = select(2, ...)
 
 local const = Private.constants
 
+local CTL = _G.ChatThrottleLib
+local DEFAULT_PRIORITY = "ALERT"
+local MAX_ADDON_MESSAGE_LEN = 255
+
 ---@class CommsUtils
 local commsUtils = {
     ---@type CallbackUtils
@@ -21,6 +25,41 @@ function commsUtils:Init()
     Private.Addon:RegisterEvent("CHAT_MSG_ADDON", "CommsUtils_OnReceivedMessage", function(_, _, ...)
         self:OnReceivedMessage(...)
     end)
+end
+
+---@param subPrefix string
+---@param encoded string
+---@param channel string
+---@param target? string
+---@param priority? "BULK"|"NORMAL"|"ALERT"
+function commsUtils:SendEncodedMessage(subPrefix, encoded, channel, target, priority)
+    if not encoded then return end
+
+    if #encoded > MAX_ADDON_MESSAGE_LEN then
+        local debugUtils = Private.DebugUtils
+        if debugUtils then
+            debugUtils:Log(
+                "COMMS",
+                "Dropped oversized addon message (subPrefix=%s, len=%d, channel=%s)",
+                tostring(subPrefix),
+                #encoded,
+                tostring(channel)
+            )
+        end
+        return
+    end
+
+    if CTL and CTL.SendAddonMessage then
+        local prio = priority or DEFAULT_PRIORITY
+        local ok = pcall(function()
+            CTL:SendAddonMessage(prio, const.ADDON_COMMS.PREFIX, encoded, channel, target)
+        end)
+        if ok then
+            return
+        end
+    end
+
+    C_ChatInfo.SendAddonMessage(const.ADDON_COMMS.PREFIX, encoded, channel, target)
 end
 
 ---@param encoded string
@@ -98,13 +137,13 @@ end
 ---@param subPrefix string
 ---@param data table
 ---@param channel string
----@param target string
+---@param target? string
 function commsUtils:SendMessage(subPrefix, data, channel, target)
     data.subPrefix = subPrefix
     local encoded = self:Encode(data)
     if not encoded then return end
 
-    C_ChatInfo.SendAddonMessage(const.ADDON_COMMS.PREFIX, encoded, channel, target)
+    self:SendEncodedMessage(subPrefix, encoded, channel, target, data.priority)
 end
 
 ---@param prefix string

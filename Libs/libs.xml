@@ -2,6 +2,7 @@
 <Ui xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.blizzard.com/wow/ui/" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
 ..\FrameXML\UI.xsd">
     <script file="LibStub/LibStub.lua" />
+    <script file="ChatThrottleLib/ChatThrottleLib.lua" />
     <Include file="RasuLibs/RasuLib.xml" />
     <Include file="RasuLocale/lib.xml" />
     <Include file="RasuForge-Settings/lib.xml" />

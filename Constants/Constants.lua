@@ -31,6 +31,7 @@ constants.COLORS = {
 
 constants.ADDON_COMMS = {
     PREFIX = "ReckoningComms",
+    PROTOCOL_VERSION = 1,
 }
 
 constants.SETTINGS = {

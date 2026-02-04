@@ -48,10 +48,57 @@ local guildSync = {
 }
 Private.GuildSyncUtils = guildSync
 
+function guildSync:IsProtocolCompatible(data)
+    if not data then return false end
+
+    -- Backward-compatible: if protocolVersion is missing, assume current.
+    local pv = tonumber(data.protocolVersion) or const.ADDON_COMMS.PROTOCOL_VERSION
+    if pv ~= const.ADDON_COMMS.PROTOCOL_VERSION then
+        local debugUtils = Private.DebugUtils
+        if debugUtils then
+            debugUtils:Log(
+                "GUILD",
+                "Ignored comms message due to protocol mismatch (got=%s, want=%s)",
+                tostring(pv),
+                tostring(const.ADDON_COMMS.PROTOCOL_VERSION)
+            )
+        end
+        return false
+    end
+    return true
+end
+
+---@param sender string?
+---@return string? shortName
+function guildSync:ShortNameFromSender(sender)
+    if not sender then return nil end
+    local shortName = strsplit("-", sender)
+    return shortName
+end
+
+function guildSync:CleanupPendingChunks()
+    local now = time()
+    local timeout = 60
+
+    for sender, requests in pairs(self.pendingChunks) do
+        for requestId, state in pairs(requests) do
+            local lastUpdate = state.lastUpdate or state.startedAt or now
+            if (now - lastUpdate) > timeout then
+                requests[requestId] = nil
+            end
+        end
+        if not next(requests) then
+            self.pendingChunks[sender] = nil
+        end
+    end
+end
+
 -- Message types for guild sync
 local MSG_TYPE = {
     SYNC_REQUEST = "GSYNC_REQ",       -- Request sync from guild
     SYNC_RESPONSE = "GSYNC_RESP",     -- Response with our data
+    SYNC_CHUNK = "GSYNC_CHUNK",       -- Chunked response with partial data
+    HEARTBEAT = "GSYNC_HB",           -- Periodic incremental sync (small slices)
     COMPLETION = "GSYNC_COMP",        -- Single achievement completion broadcast
     HELLO = "GSYNC_HELLO",            -- Announce presence on login
     ROSTER_REQUEST = "GSYNC_ROSTER",  -- Request roster info
@@ -94,6 +141,14 @@ function guildSync:RegisterMessageHandlers()
 
     comms:AddCallback(MSG_TYPE.SYNC_RESPONSE, function(data)
         self:OnSyncResponse(data)
+    end)
+
+    comms:AddCallback(MSG_TYPE.SYNC_CHUNK, function(data)
+        self:OnSyncChunk(data)
+    end)
+
+    comms:AddCallback(MSG_TYPE.HEARTBEAT, function(data)
+        self:OnHeartbeat(data)
     end)
 
     comms:AddCallback(MSG_TYPE.COMPLETION, function(data)
@@ -187,7 +242,148 @@ function guildSync:OnPlayerLogin()
         self:RequestFullSync()
     end)
 
+    self:StartHeartbeat()
     self.initialSyncDone = true
+end
+
+function guildSync:StartHeartbeat()
+    if self.heartbeatTicker then return end
+
+    self._heartbeatLastSent = 0
+    self._heartbeatCounter = 0
+    self._heartbeatIds = nil
+    self._heartbeatIndex = 1
+    self._heartbeatLastRebuild = 0
+
+    local TICK = 5
+    local MAX_INTERVAL = 80
+
+    self.heartbeatTicker = C_Timer.NewTicker(TICK, function()
+        if not IsInGuild() then return end
+
+        local now = time()
+        local onlineCount = 1
+
+        if (now - (self._pendingChunkCleanupLast or 0)) >= 15 then
+            self._pendingChunkCleanupLast = now
+            self:CleanupPendingChunks()
+        end
+
+        -- Compute online count only when we're about to consider sending.
+        -- This keeps per-tick work light while still adapting like the reference.
+        if now - (self._heartbeatLastOnlineCalc or 0) >= 30 then
+            self._heartbeatLastOnlineCalc = now
+            onlineCount = 0
+            local numMembers = GetNumGuildMembers()
+            for i = 1, numMembers do
+                local _, _, _, _, _, _, _, _, isOnline = GetGuildRosterInfo(i)
+                if isOnline then
+                    onlineCount = onlineCount + 1
+                end
+            end
+            self._heartbeatOnlineCount = onlineCount
+        else
+            onlineCount = self._heartbeatOnlineCount or 1
+        end
+
+        local interval = onlineCount
+        if interval < TICK then
+            interval = TICK
+        elseif interval > MAX_INTERVAL then
+            interval = MAX_INTERVAL
+        end
+
+        if now - (self._heartbeatLastSent or 0) < interval then
+            return
+        end
+
+        self._heartbeatLastSent = now
+        self:SendHeartbeatSlice()
+    end)
+end
+
+function guildSync:RebuildHeartbeatData()
+    local engine = Private.AchievementEngine
+    if not engine then return end
+
+    local completions = engine:GetAllCompletedWithTimestamps() or {}
+    local ids = {}
+    for achievementId in pairs(completions) do
+        table.insert(ids, achievementId)
+    end
+    table.sort(ids)
+
+    self._heartbeatCompletions = completions
+    self._heartbeatIds = ids
+    self._heartbeatIndex = 1
+    self._heartbeatLastRebuild = time()
+end
+
+function guildSync:SendHeartbeatSlice()
+    local comms = Private.CommsUtils
+    if not comms then return end
+
+    local engine = Private.AchievementEngine
+    if not engine then return end
+
+    local now = time()
+    if (not self._heartbeatIds) or (now - (self._heartbeatLastRebuild or 0) >= 60) then
+        self:RebuildHeartbeatData()
+    end
+
+    local ids = self._heartbeatIds
+    local completions = self._heartbeatCompletions or {}
+    if not ids or #ids == 0 then
+        return
+    end
+
+    local playerName = UnitName("player")
+    local _, className, classId = UnitClass("player")
+
+    local SLICE = 3
+    local slice = {}
+    local startIndex = self._heartbeatIndex or 1
+
+    for _ = 1, SLICE do
+        if startIndex > #ids then
+            startIndex = 1
+        end
+        local id = ids[startIndex]
+        slice[id] = completions[id]
+        startIndex = startIndex + 1
+    end
+
+    self._heartbeatIndex = startIndex
+    self._heartbeatCounter = (self._heartbeatCounter or 0) + 1
+
+    local payload = {
+        subPrefix = MSG_TYPE.HEARTBEAT,
+        protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
+        hbId = tostring(now) .. "-" .. tostring(self._heartbeatCounter),
+        myData = {
+            name = playerName,
+            class = className,
+            classId = classId,
+            version = const.ADDON_VERSION or "1.0.0",
+            lastSeen = now,
+            completions = slice,
+        },
+        timestamp = now,
+    }
+
+    local encoded = comms:Encode(payload)
+    if not encoded or #encoded > 255 then
+        -- If this somehow doesn't fit, shrink to 1 completion to guarantee delivery.
+        local id = ids[self._heartbeatIndex and (self._heartbeatIndex - 1) or 1] or ids[1]
+        if not id then return end
+        payload.myData.completions = { [id] = completions[id] }
+        encoded = comms:Encode(payload)
+        if not encoded or #encoded > 255 then
+            return
+        end
+    end
+
+    comms:SendEncodedMessage(MSG_TYPE.HEARTBEAT, encoded, "GUILD", nil, "BULK")
 end
 
 function guildSync:SendHello()
@@ -201,6 +397,7 @@ function guildSync:SendHello()
         class = className,
         classId = classId,
         version = const.ADDON_VERSION or "1.0.0",
+        protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
         timestamp = time(),
     }, "GUILD")
 end
@@ -217,6 +414,8 @@ function guildSync:RequestFullSync()
 
     Private.CommsUtils:SendMessage(MSG_TYPE.SYNC_REQUEST, {
         requester = UnitName("player"),
+        requestId = tostring(now) .. "-" .. tostring(math.random(100000, 999999)),
+        protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
         timestamp = now,
     }, "GUILD")
 
@@ -233,11 +432,15 @@ end
 function guildSync:OnHelloReceived(data)
     if not data or not data.name then return end
 
+    if not self:IsProtocolCompatible(data) then return end
+
+    local senderShort = self:ShortNameFromSender(data.sender) or data.name
+
     -- Don't process our own messages
-    if data.name == UnitName("player") then return end
+    if senderShort == UnitName("player") then return end
 
     -- Update member data
-    self:UpdateMemberInfo(data.name, {
+    self:UpdateMemberInfo(senderShort, {
         class = data.class,
         classId = data.classId,
         version = data.version,
@@ -246,15 +449,19 @@ function guildSync:OnHelloReceived(data)
 
     local debugUtils = Private.DebugUtils
     if debugUtils then
-        debugUtils:Log("GUILD", "Received hello from %s (v%s)", data.name, data.version or "?")
+        debugUtils:Log("GUILD", "Received hello from %s (v%s)", senderShort, data.version or "?")
     end
 end
 
 function guildSync:OnSyncRequest(data)
     if not data then return end
 
-    local requester = data.requester
+    if not self:IsProtocolCompatible(data) then return end
+
+    local requester = data.sender or data.requester
     if not requester then return end
+
+    local requestId = data.requestId or (tostring(data.timestamp or time()) .. "-" .. tostring(math.random(100000, 999999)))
 
     -- Throttle: don't send full response to same requester within cooldown
     local now = time()
@@ -266,11 +473,11 @@ function guildSync:OnSyncRequest(data)
     -- Send our data (random delay to prevent everyone responding at once)
     local delay = math.random(1, 5)
     C_Timer.After(delay, function()
-        self:SendSyncResponse(requester)
+        self:SendSyncResponse(requester, requestId)
     end)
 end
 
-function guildSync:SendSyncResponse(targetPlayer)
+function guildSync:SendSyncResponse(targetPlayer, requestId)
     if not IsInGuild() then return end
 
     local engine = Private.AchievementEngine
@@ -302,10 +509,21 @@ function guildSync:SendSyncResponse(targetPlayer)
         totalPoints = totalPoints,
     }
 
-    Private.CommsUtils:SendMessage(MSG_TYPE.SYNC_RESPONSE, {
+    -- First attempt: try to send as a single message. If it doesn't fit, fall back to chunked sync.
+    local comms = Private.CommsUtils
+    local singlePayload = {
+        subPrefix = MSG_TYPE.SYNC_RESPONSE,
+        protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
+        requestId = requestId,
         myData = myData,
         timestamp = time(),
-    }, "GUILD")
+    }
+    local encoded = comms:Encode(singlePayload)
+    if encoded and #encoded <= 255 then
+        comms:SendEncodedMessage(MSG_TYPE.SYNC_RESPONSE, encoded, "GUILD", nil, "NORMAL")
+    else
+        self:SendSyncResponseChunked(myData, requestId)
+    end
 
     local debugUtils = Private.DebugUtils
     if debugUtils then
@@ -315,19 +533,130 @@ function guildSync:SendSyncResponse(targetPlayer)
     end
 end
 
+function guildSync:SendSyncResponseChunked(myData, requestId)
+    local comms = Private.CommsUtils
+    if not comms then return end
+
+    local completions = myData.completions or {}
+
+    local ids = {}
+    for achievementId in pairs(completions) do
+        table.insert(ids, achievementId)
+    end
+    table.sort(ids)
+
+    local total = #ids
+    local seq = 1
+    local idx = 1
+    local targetChannel = "GUILD"
+
+    -- Start with a reasonable batch size and shrink if encoding exceeds message limit.
+    local batchSize = 60
+
+    while idx <= total do
+        local take = math.min(batchSize, total - idx + 1)
+        local payload, encoded
+
+        while take > 0 do
+            local slice = {}
+            for i = idx, (idx + take - 1) do
+                local id = ids[i]
+                slice[id] = completions[id]
+            end
+
+            payload = {
+                subPrefix = MSG_TYPE.SYNC_CHUNK,
+                protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
+                requestId = requestId,
+                seq = seq,
+                isLast = (idx + take - 1) >= total,
+                myData = {
+                    name = myData.name,
+                    class = myData.class,
+                    classId = myData.classId,
+                    version = myData.version,
+                    lastSeen = myData.lastSeen,
+                    completions = slice,
+                    totalPoints = myData.totalPoints,
+                    totalCompletions = total,
+                },
+                timestamp = time(),
+            }
+
+            encoded = comms:Encode(payload)
+            if encoded and #encoded <= 255 then
+                break
+            end
+
+            take = take - 1
+        end
+
+        if not encoded then
+            return
+        end
+
+        -- If we couldn't even fit a single entry, bail to avoid an infinite loop.
+        if take <= 0 then
+            local debugUtils = Private.DebugUtils
+            if debugUtils then
+                debugUtils:Log("GUILD", "Failed to send sync chunk: message too large even for one completion")
+            end
+            return
+        end
+
+        comms:SendEncodedMessage(MSG_TYPE.SYNC_CHUNK, encoded, targetChannel, nil, "BULK")
+
+        idx = idx + take
+        seq = seq + 1
+    end
+
+    -- Edge case: no completions (send a single empty chunk so receivers still learn about us)
+    if total == 0 then
+        local payload = {
+            subPrefix = MSG_TYPE.SYNC_CHUNK,
+            protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
+            requestId = requestId,
+            seq = 1,
+            isLast = true,
+            myData = {
+                name = myData.name,
+                class = myData.class,
+                classId = myData.classId,
+                version = myData.version,
+                lastSeen = myData.lastSeen,
+                completions = {},
+                totalPoints = myData.totalPoints,
+                totalCompletions = 0,
+            },
+            timestamp = time(),
+        }
+        local encoded = comms:Encode(payload)
+        if encoded and #encoded <= 255 then
+            comms:SendEncodedMessage(MSG_TYPE.SYNC_CHUNK, encoded, targetChannel, nil, "BULK")
+        end
+    end
+end
+
 function guildSync:OnSyncResponse(data)
     if not data then return end
+    if not self:IsProtocolCompatible(data) then return end
 
     local debugUtils = Private.DebugUtils
+    local now = time()
+    local cutoff = now - self.MAX_EVENT_AGE
 
     -- Process sender's own data
     if data.myData then
+        local senderShort = self:ShortNameFromSender(data.sender) or data.myData.name
+        data.myData.name = senderShort
         self:MergeMemberData(data.myData)
 
         -- Add events for their completions
         if data.myData.completions then
             for achievementId, timestamp in pairs(data.myData.completions) do
-                self:AddEvent(achievementId, data.myData.name, data.myData.class, timestamp)
+                if timestamp and timestamp > cutoff then
+                    self:AddEvent(achievementId, data.myData.name, data.myData.class, timestamp)
+                end
             end
         end
     end
@@ -340,7 +669,9 @@ function guildSync:OnSyncResponse(data)
             -- Add events for their completions
             if memberData.completions then
                 for achievementId, timestamp in pairs(memberData.completions) do
-                    self:AddEvent(achievementId, name, memberData.class, timestamp)
+                    if timestamp and timestamp > cutoff then
+                        self:AddEvent(achievementId, name, memberData.class, timestamp)
+                    end
                 end
             end
         end
@@ -355,17 +686,97 @@ function guildSync:OnSyncResponse(data)
     end
 end
 
+function guildSync:OnSyncChunk(data)
+    if not data or not data.myData then return end
+    if not self:IsProtocolCompatible(data) then return end
+
+    local sender = data.sender
+    if not sender then return end
+
+    local senderShort = self:ShortNameFromSender(sender) or data.myData.name
+    data.myData.name = senderShort
+
+    local requestId = data.requestId or "legacy"
+    local seq = tonumber(data.seq or 0) or 0
+    if seq <= 0 then return end
+
+    self.pendingChunks[sender] = self.pendingChunks[sender] or {}
+    local state = self.pendingChunks[sender][requestId]
+    if not state then
+        state = {
+            startedAt = time(),
+            lastUpdate = time(),
+            received = {},
+            lastSeq = nil,
+            lastPersist = 0,
+        }
+        self.pendingChunks[sender][requestId] = state
+    end
+
+    -- Deduplicate chunk sequences
+    if state.received[seq] then
+        return
+    end
+    state.received[seq] = true
+    state.lastUpdate = time()
+
+    if data.isLast then
+        state.lastSeq = seq
+    end
+
+    -- Merge the partial member data
+    self:MergeMemberData(data.myData)
+
+    -- Add only recent completion events (avoid flooding recentEvents with full history)
+    if data.myData.completions then
+        local now = time()
+        local cutoff = now - self.MAX_EVENT_AGE
+        for achievementId, timestamp in pairs(data.myData.completions) do
+            if timestamp and timestamp > cutoff then
+                self:AddEvent(achievementId, data.myData.name, data.myData.class, timestamp)
+            end
+        end
+    end
+
+    -- Persist/refresh occasionally so partial chunk delivery still updates UI.
+    local now = time()
+    if (now - (state.lastPersist or 0)) >= 2 then
+        state.lastPersist = now
+        self:SaveCachedData()
+        self:NotifyUIUpdate()
+    end
+
+    -- If we have the last seq and all chunks up to it, finalize and persist.
+    if state.lastSeq then
+        for i = 1, state.lastSeq do
+            if not state.received[i] then
+                return
+            end
+        end
+
+        self.pendingChunks[sender][requestId] = nil
+        if not next(self.pendingChunks[sender]) then
+            self.pendingChunks[sender] = nil
+        end
+
+        self:SaveCachedData()
+        self:NotifyUIUpdate()
+    end
+end
+
 function guildSync:OnCompletionReceived(data)
     if not data or not data.achievementId then return end
+    if not self:IsProtocolCompatible(data) then return end
 
     -- Don't process our own completions
-    if data.playerName == UnitName("player") then return end
+    local senderShort = self:ShortNameFromSender(data.sender) or data.playerName
+    if senderShort == UnitName("player") then return end
 
     -- Add the event
-    self:AddEvent(data.achievementId, data.playerName, data.playerClass, data.timestamp or time())
+    self:AddEvent(data.achievementId, senderShort, data.playerClass, data.timestamp or time())
 
     -- Update member's completion data
-    local member = self.memberData[data.playerName]
+    local member = self.memberData[senderShort]
     if member then
         member.completions = member.completions or {}
         member.completions[data.achievementId] = data.timestamp or time()
@@ -389,11 +800,38 @@ function guildSync:OnCompletionReceived(data)
     local debugUtils = Private.DebugUtils
     if debugUtils then
         local achievement = Private.AchievementUtils:GetAchievement(data.achievementId)
-        debugUtils:Log("GUILD", "%s completed: %s", data.playerName, achievement and achievement.name or "Unknown")
+        debugUtils:Log("GUILD", "%s completed: %s", senderShort, achievement and achievement.name or "Unknown")
     end
 end
 
+function guildSync:OnHeartbeat(data)
+    if not data or not data.myData or not data.myData.completions then return end
+    if not self:IsProtocolCompatible(data) then return end
+
+    -- Don't process our own heartbeats
+    local senderShort = self:ShortNameFromSender(data.sender) or data.myData.name
+    if senderShort == UnitName("player") then return end
+
+    data.myData.name = senderShort
+
+    self:MergeMemberData(data.myData)
+
+    -- Heartbeats are incremental; treat completions as recent-ish signals only.
+    local now = time()
+    local cutoff = now - self.MAX_EVENT_AGE
+    for achievementId, timestamp in pairs(data.myData.completions) do
+        if timestamp and timestamp > cutoff then
+            self:AddEvent(achievementId, data.myData.name, data.myData.class, timestamp)
+        end
+    end
+
+    self:SaveCachedData()
+    self:NotifyUIUpdate()
+end
+
 function guildSync:OnRosterRequest(data)
+    if data and (not self:IsProtocolCompatible(data)) then return end
+
     -- Someone wants roster info - send what we have
     local delay = math.random(1, 3)
     C_Timer.After(delay, function()
@@ -417,12 +855,14 @@ function guildSync:SendRosterResponse()
 
     Private.CommsUtils:SendMessage(MSG_TYPE.ROSTER_RESPONSE, {
         roster = rosterData,
+        protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
         timestamp = time(),
     }, "GUILD")
 end
 
 function guildSync:OnRosterResponse(data)
     if not data or not data.roster then return end
+    if not self:IsProtocolCompatible(data) then return end
 
     for name, info in pairs(data.roster) do
         self:UpdateMemberInfo(name, info)
@@ -572,6 +1012,9 @@ function guildSync:BroadcastCompletion(achievementId)
         if self.memberData[playerName] then
             self.memberData[playerName].completions = completions
         end
+
+        -- Ensure heartbeat data is rebuilt soon (we have new completion state).
+        self._heartbeatLastRebuild = 0
     end
 
     -- Broadcast to guild
@@ -579,6 +1022,7 @@ function guildSync:BroadcastCompletion(achievementId)
         achievementId = achievementId,
         playerName = playerName,
         playerClass = className,
+        protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
         timestamp = timestamp,
     }, "GUILD")
 
@@ -615,6 +1059,7 @@ function guildSync:OnGuildRosterUpdate()
                 self.memberData[shortName] = {
                     name = shortName,
                     class = class,
+                    classId = 0,
                     version = "N/A",  -- They don't have the addon
                     lastSeen = online and time() or 0,
                     completions = {},
