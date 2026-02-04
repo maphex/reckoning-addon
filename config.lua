@@ -218,7 +218,7 @@ aUtils:RegisterAchievements({
 		points = 20,
 		category = 1,
 		subCategory = 10,
-		icon = 236470,
+		icon = 133839,
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "DUNGEON_CLEARED",
@@ -1258,7 +1258,7 @@ aUtils:RegisterAchievements({
 		description = "Obtain all 5 Heroic keys",
 		points = 40,
 		category = 5,
-		icon = 236689,
+		icon = 136058,
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "KEY_OBTAINED",
@@ -1272,7 +1272,7 @@ aUtils:RegisterAchievements({
 		description = "Collect 10,000 Gold",
 		points = 10,
 		category = 5,
-		icon = 133784,
+		icon = 134113,
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "GOLD_MILESTONE",
@@ -1618,7 +1618,7 @@ aUtils:RegisterAchievements({
 		description = "Kill 5,000 Monsters of any type",
 		points = 10,
 		category = 5,
-		icon = 134263,
+		icon = 135363,
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "CREATURE_KILLED",
@@ -1934,7 +1934,7 @@ aUtils:RegisterAchievements({
 		points = 10,
 		category = 6,
 		subCategory = 60,
-		icon = 237428,
+		icon = 136011,
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "ITEM_CRAFTED",
@@ -3091,7 +3091,7 @@ aUtils:RegisterAchievements({
 		points = 20,
 		category = 3,
 		subCategory = 32,
-		icon = 236348,
+		icon = 255132,
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "PVP_KILL",
@@ -3125,7 +3125,7 @@ aUtils:RegisterAchievements({
 		points = 40,
 		category = 3,
 		subCategory = 30,
-		icon = 236646,
+		icon = 132205,
 		cadence = Enums.Cadence.OneTime,
 		startWeek = 2,
 		endWeek = 3,
@@ -3441,7 +3441,7 @@ aUtils:RegisterAchievements({
 		points = 20,
 		category = 2,
 		subCategory = 20,
-		icon = 236247,
+		icon = 135886,
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
@@ -3583,7 +3583,7 @@ aUtils:RegisterAchievements({
 		points = 25,
 		category = 2,
 		subCategory = 20,
-		icon = 254651,
+		icon = 135788,
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
