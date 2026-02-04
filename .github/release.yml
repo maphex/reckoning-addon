@@ -1,0 +1,25 @@
+name: release
+
+on:
+  push:
+    tags:
+      - '**'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Package and release
+        uses: BigWigsMods/packager@v2
