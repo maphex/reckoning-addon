@@ -2734,7 +2734,7 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "PVP_OBJECTIVE_CAPTURED",
-			conditions = { battleground = "Warsong Gulch" }
+			conditions = { location = "Warsong Gulch", objectiveType = Enums.ObjectiveType.Flag }
 		},
 		progress = { type = "count", required = 3, reset = "match" }
 	},
@@ -2934,7 +2934,7 @@ aUtils:RegisterAchievements({
 	{
 		id = 3023,
 		name = "Wrecking Ball",
-		description = "Get 20 KBs in any BG without Dying",
+		description = "Get 20 KBs in a single BG without dying",
 		points = 15,
 		category = 3,
 		subCategory = 30,
@@ -2944,7 +2944,11 @@ aUtils:RegisterAchievements({
 			event = "PVP_KILLING_BLOW",
 			conditions = {}
 		},
-		progress = { type = "count", required = 20, reset = "death" }
+		progress = { type = "count", required = 20, reset = "match" },
+		failCondition = {
+			event = "PLAYER_DIED",
+			conditions = { inBattleground = true }
+		}
 	},
 
 	-- Arena (SubCategory 31)

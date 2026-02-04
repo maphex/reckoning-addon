@@ -39,6 +39,7 @@ local Enums = Private.Enums
 ---| "FALL_SURVIVED"
 ---| "PRIMAL_LOOTED"
 ---| "TREASURE_CHEST_LOOTED"
+---| "PLAYER_DIED"
 ---| "WEEKLY_RESET"
 ---| "ACHIEVEMENT_COMPLETED"
 
@@ -707,13 +708,21 @@ function eventBridge:HandleCombatLog(...)
     -- Handle unit deaths
     if subevent == "UNIT_DIED" then
         -- Player death tracking
-        if destGUID == playerGUID and self.dungeonState.inInstance then
-            self.dungeonState.totalDeaths = self.dungeonState.totalDeaths + 1
+        if destGUID == playerGUID then
+            if self.dungeonState.inInstance then
+                self.dungeonState.totalDeaths = self.dungeonState.totalDeaths + 1
 
-            -- Track deaths during boss encounter
-            if self.dungeonState.encounterActive then
-                self.dungeonState.encounterDeaths = (self.dungeonState.encounterDeaths or 0) + 1
+                -- Track deaths during boss encounter
+                if self.dungeonState.encounterActive then
+                    self.dungeonState.encounterDeaths = (self.dungeonState.encounterDeaths or 0) + 1
+                end
             end
+
+            self:Fire("PLAYER_DIED", {
+                inBattleground = self.pvpState.inBattleground or false,
+                inArena = self.arenaState.inArena or false,
+                location = GetZoneText() or "Unknown",
+            })
         end
 
         -- Boss death detection
@@ -875,7 +884,16 @@ end
 ---@param guid string
 ---@return number|nil
 function eventBridge:GetClassFromGUID(guid)
-    -- TODO: GetPlayerInfoByGUID doesn't exist in TBC; would need targeting or another source for victim class
+    -- Best-effort: use current target when it matches the GUID
+    if type(UnitGUID) ~= "function" or type(UnitClass) ~= "function" then
+        return nil
+    end
+
+    if UnitGUID("target") == guid then
+        local _, classFile = UnitClass("target")
+        return classFile
+    end
+
     return nil
 end
 

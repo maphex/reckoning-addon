@@ -26,7 +26,7 @@ local Enums = Private.Enums
 ---@field required? number
 ---@field criteriaKey? string Payload field name for unique criteria (e.g. "instance", "zone")
 ---@field subCategory? number For type "meta", count completed achievements in this subCategory
----@field reset? "match" Reset progress when a match starts (e.g., battleground-only)
+---@field reset? "match"|"death"|"loss" Reset progress for match-scoped achievements
 
 ---@class AchievementFailCondition
 ---@field event string
