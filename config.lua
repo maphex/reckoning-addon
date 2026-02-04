@@ -2734,7 +2734,7 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "PVP_OBJECTIVE_CAPTURED",
-			conditions = { location = "Warsong Gulch", objectiveType = Enums.ObjectiveType.Flag }
+			conditions = { location = "Warsong Gulch", objectiveType = Enums.ObjectiveType.Flag, isFlagReturn = false }
 		},
 		progress = { type = "count", required = 3, reset = "match" }
 	},
@@ -2763,7 +2763,7 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "PVP_OBJECTIVE_CAPTURED",
-			conditions = { battleground = "Warsong Gulch", objectiveType = "flag_return" }
+			conditions = { location = "Warsong Gulch", isFlagReturn = true }
 		},
 		progress = { type = "count", required = 5, reset = "match" }
 	},

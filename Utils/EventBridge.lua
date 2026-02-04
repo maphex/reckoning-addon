@@ -1804,15 +1804,18 @@ function eventBridge:HandleBGSystemMessage(message)
         "has assaulted the",
         "flag was picked up",
         "captured the flag",
+        "flag was returned",
+        "returns the flag",
     }
 
-    -- Check if player name is mentioned
     for _, pattern in ipairs(capturePatterns) do
         if message:find(pattern) and message:find(playerName) then
+            local isFlagReturn = (pattern == "flag was returned" or pattern == "returns the flag")
             self:Fire("PVP_OBJECTIVE_CAPTURED", {
-                objectiveType = objectiveType,  -- Enums.ObjectiveType.Flag/Base/Tower
+                objectiveType = objectiveType,
                 location = self.pvpState.bgName or GetZoneText() or "Unknown",
                 objectiveName = objectiveName or "Unknown",
+                isFlagReturn = isFlagReturn,
             })
             break
         end
