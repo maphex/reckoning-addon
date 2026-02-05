@@ -20,6 +20,8 @@ local engine = {
     completedAchievements = {},
     ---@type table<number, number> -- Achievement ID -> completion timestamp
     completedTimestamps = {},
+    ---@type table<number, string> -- Achievement ID -> addon version at completion (for correction gating)
+    completionVersions = {},
     ---@type table<number, boolean> -- Achievement ID -> failed state (for fail conditions)
     failedState = {},
     ---@type number -- Last saved week number
@@ -89,6 +91,7 @@ function engine:LoadProgress()
         self.criteriaProgress = data.criteria or {}
         self.completedAchievements = data.completed or {}
         self.completedTimestamps = data.timestamps or {}
+        self.completionVersions = data.completionVersions or {}
         self.lastWeek = data.lastWeek or 0
 
         if not valid then
@@ -109,7 +112,38 @@ function engine:LoadProgress()
         self.criteriaProgress = {}
         self.completedAchievements = {}
         self.completedTimestamps = {}
+        self.completionVersions = {}
         self.lastWeek = 0
+    end
+
+    -- Backfill completionVersions from existing db.completed or guild cache (fill-missing only, semver-parseable)
+    local guildSync = Private.GuildSyncUtils
+    local db = addon and addon.Database
+    local dbCompleted = db and db.completed
+    local myName = (type(UnitName) == "function") and (UnitName("player") or ""):match("^([^%-]+)") or nil
+    local guildMembers = (db and db.guildCache and db.guildCache.members) or {}
+    local myMember = myName and guildMembers[myName]
+    for id, _ in pairs(self.completedAchievements or {}) do
+        if not self.completionVersions[id] or self.completionVersions[id] == "" then
+            local ver = nil
+            if dbCompleted and dbCompleted[id] and dbCompleted[id].addonVersion then
+                ver = tostring(dbCompleted[id].addonVersion)
+            end
+            if (not ver or ver == "") and myMember and myMember.completionVersions and myMember.completionVersions[id] then
+                ver = tostring(myMember.completionVersions[id])
+            end
+            if ver and ver ~= "" and guildSync and guildSync.ParseSemVer then
+                local m1 = guildSync:ParseSemVer(ver)
+                if m1 then
+                    self.completionVersions[id] = ver
+                end
+            end
+        end
+    end
+
+    -- Rebuild addon.Database.completed from engine state so UI and guild sync see correct metadata
+    if dbUtils.RebuildCompletedFromEngine then
+        dbUtils:RebuildCompletedFromEngine(self.completedAchievements, self.completedTimestamps, self.completionVersions)
     end
 
     -- Sync with UI
@@ -144,6 +178,7 @@ function engine:SaveProgress(silent)
         criteria = self.criteriaProgress,
         completed = self.completedAchievements,
         timestamps = self.completedTimestamps,
+        completionVersions = self.completionVersions or {},
         lastWeek = dbUtils:GetCurrentWeek(),
         savedAt = time(),
     }
@@ -183,8 +218,14 @@ function engine:ResetAllProgress()
     self.criteriaProgress = {}
     self.completedAchievements = {}
     self.completedTimestamps = {}
+    self.completionVersions = {}
     self.failedState = {}
     self.lastWeek = 0
+
+    local dbUtils = Private.DatabaseUtils
+    if dbUtils and dbUtils.ClearAllCompletions then
+        dbUtils:ClearAllCompletions()
+    end
 
     -- Clear explored zone cache used by EventBridge-based exploration triggers
     if Private.EventBridge then
@@ -285,6 +326,11 @@ function engine:OnWeeklyReset()
             -- Unmark as completed
             self.completedAchievements[id] = nil
             self.completedTimestamps[id] = nil
+            self.completionVersions[id] = nil
+            local dbUtils = Private.DatabaseUtils
+            if dbUtils and dbUtils.ClearCompletion then
+                dbUtils:ClearCompletion(id)
+            end
 
             -- Update UI
             local total = achievement.progress and achievement.progress.required or 1
@@ -626,8 +672,8 @@ function engine:UpdateProgress(achievement, payload, event)
 
     if progress.type == "either" then
         -- Either/or progress (used for Primal vs Mote weekly achievements).
-        -- Important: Primals and Motes do NOT add together; we track two separate counters
-        -- and complete when either one reaches `progress.required`.
+        -- 1 primal = 10 motes; EventBridge sends mote-equivalent in payload.count for primals.
+        -- We track two separate counters and complete when either reaches progress.required (mote-equivalent).
         local required = progress.required or 1
         local itemName = payload and payload.itemName
         local amount = 1
@@ -865,8 +911,17 @@ function engine:CompleteAchievement(achievement)
     end
 
     -- Mark as completed
+    local completedAt = time()
     self.completedAchievements[achievementId] = true
-    self.completedTimestamps[achievementId] = time()
+    self.completedTimestamps[achievementId] = completedAt
+    local const = Private.constants
+    self.completionVersions[achievementId] = (const and const.ADDON_VERSION and tostring(const.ADDON_VERSION)) or nil
+
+    -- Keep addon.Database.completed cache in sync for UI and guild sync
+    local dbUtils = Private.DatabaseUtils
+    if dbUtils and dbUtils.CompleteAchievement then
+        dbUtils:CompleteAchievement(achievementId, completedAt)
+    end
 
     -- Update UI
     self:UpdateUICompleted(achievementId)
@@ -1226,7 +1281,13 @@ function engine:DebugReset(achievementId)
     self.criteriaProgress[achievementId] = {}
     self.completedAchievements[achievementId] = nil
     self.completedTimestamps[achievementId] = nil
+    self.completionVersions[achievementId] = nil
     self.failedState[achievementId] = nil
+
+    local dbUtils = Private.DatabaseUtils
+    if dbUtils and dbUtils.ClearCompletion then
+        dbUtils:ClearCompletion(achievementId)
+    end
 
     local aUtils = Private.AchievementUtils
     local achievement = aUtils:GetAchievement(achievementId)

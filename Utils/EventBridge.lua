@@ -45,6 +45,7 @@ local Enums = Private.Enums
 ---| "PLAYER_DIED"
 ---| "WEEKLY_RESET"
 ---| "ACHIEVEMENT_COMPLETED"
+---| "RUNNING_2_MINUTES"
 
 -------------------------------------------------------------------------------
 -- Boss Tracking Data (TBC bosses by instance)
@@ -250,6 +251,7 @@ function eventBridge:Init()
     end)
     self.eventFrame:SetScript("OnUpdate", function(_, elapsed)
         self:HandleFallUpdate(elapsed)
+        self:HandleRunningUpdate(elapsed)
     end)
 
     -- Register TBC-compatible WoW events
@@ -363,6 +365,12 @@ function eventBridge:Init()
     self.disenchantState = {
         isDisenchanting = false,
         targetItem = nil,
+    }
+
+    -- Easter egg: run 2 minutes nonstop (only track until achievement 9001 is completed)
+    self.runningState = {
+        seconds = 0,
+        FAST_AF_BOIII_ACHIEVEMENT_ID = 9001,
     }
 end
 
@@ -706,6 +714,47 @@ function eventBridge:HandleFallUpdate(elapsed)
                 })
             end
         end
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Running 2 minutes nonstop (Easter egg: Fast AF BOIII)
+-- Only runs while achievement 9001 is not completed; stops tracking after completion.
+-------------------------------------------------------------------------------
+function eventBridge:HandleRunningUpdate(elapsed)
+    -- Do not track running at all once the achievement is completed (saves work every frame)
+    local aid = self.runningState and self.runningState.FAST_AF_BOIII_ACHIEVEMENT_ID or 9001
+    local engine = Private.AchievementEngine
+    if not engine or engine.completedAchievements[aid] then
+        return
+    end
+
+    local isRunning = false
+    if type(IsRunning) == "function" then
+        isRunning = IsRunning()
+    end
+    if not isRunning and type(GetUnitSpeed) == "function" then
+        local speed = GetUnitSpeed("player")
+        if speed and speed > 5 then
+            isRunning = true
+        end
+    end
+    if type(IsMounted) == "function" and IsMounted() then
+        isRunning = false
+    end
+    if type(UnitIsDeadOrGhost) == "function" and UnitIsDeadOrGhost("player") then
+        isRunning = false
+    end
+
+    if not isRunning then
+        self.runningState.seconds = 0
+        return
+    end
+
+    self.runningState.seconds = (self.runningState.seconds or 0) + elapsed
+    if self.runningState.seconds >= 120 then
+        self.runningState.seconds = 0
+        self:Fire("RUNNING_2_MINUTES", {})
     end
 end
 
@@ -1334,21 +1383,21 @@ end
 -- Loot Handling (ITEM_CRAFTED, FISH_CAUGHT, BADGE_EARNED, RESOURCE_GATHERED)
 -------------------------------------------------------------------------------
 
--- For primal/mote weekly achievements: primals are worth 3 motes.
+-- For primal/mote weekly achievements: 1 primal = 10 motes (mote-equivalent counting).
 local PRIMAL_MOTE_EQUIVALENT = {
-    ["Primal Mana"] = 3,
+    ["Primal Mana"] = 10,
     ["Mote of Mana"] = 1,
-    ["Primal Fire"] = 3,
+    ["Primal Fire"] = 10,
     ["Mote of Fire"] = 1,
-    ["Primal Shadow"] = 3,
+    ["Primal Shadow"] = 10,
     ["Mote of Shadow"] = 1,
-    ["Primal Air"] = 3,
+    ["Primal Air"] = 10,
     ["Mote of Air"] = 1,
-    ["Primal Water"] = 3,
+    ["Primal Water"] = 10,
     ["Mote of Water"] = 1,
-    ["Primal Earth"] = 3,
+    ["Primal Earth"] = 10,
     ["Mote of Earth"] = 1,
-    ["Primal Life"] = 3,
+    ["Primal Life"] = 10,
     ["Mote of Life"] = 1,
 }
 

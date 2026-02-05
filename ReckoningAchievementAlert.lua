@@ -181,9 +181,25 @@ end
 -- Debug Command
 -------------------------------------------------------------------------------
 
+local FAST_AF_BOIII_ACHIEVEMENT_ID = 9001
+
 SLASH_RECKTEST1 = "/recktest"
 SlashCmdList["RECKTEST"] = function(msg)
-    -- Get first achievement for testing
+    local trimmed = msg and msg:match("^%s*(.-)%s*$") or ""
+    local lower = trimmed:lower()
+
+    -- Test the hidden easter-egg achievement toast: /recktest fastafboiii or /recktest 9001
+    if lower == "fastafboiii" or lower == "9001" or trimmed == "9001" then
+        if Data._achievements[FAST_AF_BOIII_ACHIEVEMENT_ID] then
+            ReckoningAchievementAlert_Show(FAST_AF_BOIII_ACHIEVEMENT_ID)
+            print("Reckoning: Showing Fast AF BOIII achievement toast (preview). Run 2 minutes nonstop to earn it for real.")
+        else
+            print("Reckoning: Easter egg achievement not found.")
+        end
+        return
+    end
+
+    -- Default: show first achievement for testing
     local testAchievementId = nil
     for id, achievement in pairs(Data._achievements) do
         testAchievementId = id

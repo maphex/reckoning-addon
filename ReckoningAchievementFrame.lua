@@ -106,6 +106,9 @@ Reckoning_Achievements._achievementsByCategory = Reckoning_Achievements._achieve
 -- Local reference for internal use
 local Data                                     = Reckoning_Achievements
 
+-- Hidden achievements (easter eggs) are not shown in the achievement panel
+local HIDDEN_ACHIEVEMENT_IDS                    = { [9001] = true } -- Fast AF BOIII
+
 -- Check if an achievement is available based on current week
 -- This must be defined before Data functions that use it
 local function IsAchievementAvailable(achievement)
@@ -272,9 +275,10 @@ function Data:GetAchievements(categoryId, filter, searchText)
 
     -- Apply filter and search
     for _, achievement in ipairs(sourceList) do
-        -- Skip achievements that aren't available yet (startWeek > currentWeek)
-        if not IsAchievementAvailable(achievement) then
-            -- Skip unavailable achievements
+        if HIDDEN_ACHIEVEMENT_IDS[achievement.id] then
+            -- Hidden treasure: do not list in panel
+        elseif not IsAchievementAvailable(achievement) then
+            -- Skip achievements that aren't available yet (startWeek > currentWeek)
         else
             local passFilter = true
             local passSearch = true
@@ -321,8 +325,9 @@ function Data:SearchAllAchievements(searchText)
     local lowerSearch = string.lower(searchText)
 
     for _, achievement in pairs(self._achievements) do
-        -- Skip unavailable achievements
-        if IsAchievementAvailable(achievement) then
+        if HIDDEN_ACHIEVEMENT_IDS[achievement.id] then
+            -- Hidden treasure: do not show in search
+        elseif IsAchievementAvailable(achievement) then
             local lowerName = string.lower(achievement.name or "")
             local lowerDesc = string.lower(achievement.description or "")
             if string.find(lowerName, lowerSearch, 1, true) or string.find(lowerDesc, lowerSearch, 1, true) then
@@ -2701,6 +2706,7 @@ function ReckoningAchievementManage_Show(achievementId)
             if dialog.BuilderDayDD then dialog.BuilderDayDD:SetShown(showFromDate) end
             if dialog.BuilderVersionLabel then dialog.BuilderVersionLabel:SetShown(showVersion) end
             if dialog.BuilderVersionEditBox then dialog.BuilderVersionEditBox:SetShown(showVersion) end
+            if dialog.BuilderRevalidateWarning then dialog.BuilderRevalidateWarning:SetShown(t == "revalidate") end
             if dialog.BuilderModeLabel then dialog.BuilderModeLabel:SetShown(showMode) end
             if dialog.BuilderModeDD then dialog.BuilderModeDD:SetShown(showMode) end
             if dialog.BuildPreviewSentence then dialog.BuildPreviewSentence(dialog) end
@@ -2758,6 +2764,15 @@ function ReckoningAchievementManage_Show(achievementId)
         f.BuilderVersionRow = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         f.BuilderVersionRow:SetPoint("TOPLEFT", 16, y)
         y = y - 26
+
+        local revalidateWarning = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        revalidateWarning:SetPoint("TOPLEFT", 16, y)
+        revalidateWarning:SetText("Requires completion versions; missing version means completion won't count until re-earned or backfilled.")
+        revalidateWarning:SetWordWrap(true)
+        revalidateWarning:SetWidth(340)
+        revalidateWarning:SetNonSpaceWrap(true)
+        f.BuilderRevalidateWarning = revalidateWarning
+        y = y - 28
 
         local modeLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         modeLabel:SetPoint("TOPLEFT", 16, y)
@@ -3094,15 +3109,15 @@ function ReckoningAchievementButton_OnEnter(button)
             local db = (priv and priv.Addon and priv.Addon.Database) or nil
             local completedData = db and db.completed
             local completedAt, addonVersion = nil, nil
-            if completedData and achievement.id and completedData[achievement.id] then
+            if achievement.completed and completedData and achievement.id and completedData[achievement.id] then
                 completedAt = completedData[achievement.id].completedAt
                 addonVersion = completedData[achievement.id].addonVersion and tostring(completedData[achievement.id].addonVersion) or nil
-            else
-                completedAt = time()
-                addonVersion = (priv and priv.constants and priv.constants.ADDON_VERSION) and tostring(priv.constants.ADDON_VERSION) or nil
             end
-            counts = (not correctionSync or not correctionSync.ShouldCountAchievementPoints) or
-                correctionSync:ShouldCountAchievementPoints(achievement.id, completedAt, addonVersion)
+            if not achievement.completed or not correctionSync or not correctionSync.ShouldCountAchievementPoints then
+                counts = true
+            else
+                counts = correctionSync:ShouldCountAchievementPoints(achievement.id, completedAt, addonVersion)
+            end
         end
         if counts then
             GameTooltip:AddLine(pointsName .. ": " .. achievement.points, 1, 0.82, 0)
@@ -3711,17 +3726,14 @@ function ReckoningAchievementFrame_UpdateAchievements(frame)
             button.selected = (frame.selectedAchievementId == achievement.id)
             button.collapsed = not button.selected
 
-            -- Whether this achievement counts for points (corrections + version gating)
+            -- Whether this achievement counts for points (corrections + version gating). Only evaluate for completed; use real metadata or nil (no fabricated fallback).
             local completedAt, addonVersion = nil, nil
-            if completedData and achievement.id and completedData[achievement.id] then
+            if achievement.completed and completedData and achievement.id and completedData[achievement.id] then
                 completedAt = completedData[achievement.id].completedAt
                 addonVersion = completedData[achievement.id].addonVersion and tostring(completedData[achievement.id].addonVersion) or nil
-            else
-                completedAt = time()
-                addonVersion = (priv and priv.constants and priv.constants.ADDON_VERSION) and tostring(priv.constants.ADDON_VERSION) or nil
             end
             local countsForThisPlayer = true
-            if correctionSync and correctionSync.ShouldCountAchievementPoints then
+            if achievement.completed and correctionSync and correctionSync.ShouldCountAchievementPoints then
                 countsForThisPlayer = correctionSync:ShouldCountAchievementPoints(achievement.id, completedAt, addonVersion)
             end
             button.countsForThisPlayer = countsForThisPlayer

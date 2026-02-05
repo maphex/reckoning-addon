@@ -1716,7 +1716,7 @@ local ACHIEVEMENTS = {
 	{
 		id = 6002,
 		name = "Primal Procurer (Shadow)",
-		description = "Loot 5 Primal Shadow (or 15 Mote of Shadow) in Outland",
+		description = "Loot 5 Primal Shadow (or 50 Mote of Shadow) in Outland",
 		points = 10,
 		category = 6,
 		subCategory = 60,
@@ -1727,7 +1727,7 @@ local ACHIEVEMENTS = {
 			event = "PRIMAL_LOOTED",
 			conditions = { itemName = { "Primal Shadow", "Mote of Shadow" } }
 		},
-		progress = { type = "either", required = 15 }
+		progress = { type = "either", required = 50 }
 	},
 	{
 		id = 6003,
@@ -1765,7 +1765,7 @@ local ACHIEVEMENTS = {
 	{
 		id = 6005,
 		name = "Playing with Fire",
-		description = "Loot 5 Primal Fire (or 15 Mote of Fire) in Outland",
+		description = "Loot 5 Primal Fire (or 50 Mote of Fire) in Outland",
 		points = 10,
 		category = 6,
 		subCategory = 60,
@@ -1775,7 +1775,7 @@ local ACHIEVEMENTS = {
 			event = "PRIMAL_LOOTED",
 			conditions = { itemName = { "Primal Fire", "Mote of Fire" } }
 		},
-		progress = { type = "either", required = 15 }
+		progress = { type = "either", required = 50 }
 	},
 	{
 		id = 6006,
@@ -1810,7 +1810,7 @@ local ACHIEVEMENTS = {
 	{
 		id = 6008,
 		name = "Mana Matters",
-		description = "Loot 5 Primal Mana (or 15 Mote of Mana) in Netherstorm",
+		description = "Loot 5 Primal Mana (or 50 Mote of Mana) in Netherstorm",
 		points = 10,
 		category = 6,
 		subCategory = 60,
@@ -1820,7 +1820,7 @@ local ACHIEVEMENTS = {
 			event = "PRIMAL_LOOTED",
 			conditions = { itemName = { "Primal Mana", "Mote of Mana" }, zone = "Netherstorm" }
 		},
-		progress = { type = "either", required = 15 }
+		progress = { type = "either", required = 50 }
 	},
 	{
 		id = 6009,
@@ -4180,6 +4180,25 @@ local ACHIEVEMENTS = {
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Illidan Stormrage" }
+		}
+	},
+
+	-------------------------------------------------------------------------------
+	-- Easter egg (0 points, for the memes)
+	-------------------------------------------------------------------------------
+	{
+		id = 9001,
+		name = "Fast AF BOIII",
+		description = "Run for 2 minutes nonstop",
+		points = 0,
+		category = 5,
+		subCategory = 50,
+		icon = "Interface\\Addons\\Reckoning\\Media\\Textures\\afBoi.png",
+		cadence = Enums.Cadence.AllTime,
+		startWeek = 1,
+		progress = { type = "count", required = 1 },
+		trigger = {
+			event = "RUNNING_2_MINUTES"
 		}
 	},
 

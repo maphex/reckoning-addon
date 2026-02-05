@@ -456,6 +456,43 @@ function databaseUtils:SetAchievementProgress(achievementId, progressData)
     addon.Database.progress[achievementId] = progressData
 end
 
+---Rebuild addon.Database.completed from engine state (after load). Non-destructive: only sets entries for completed achievement IDs.
+---@param completedAchievements table<number, boolean>
+---@param completedTimestamps table<number, number>
+---@param completionVersions table<number, string>|nil
+function databaseUtils:RebuildCompletedFromEngine(completedAchievements, completedTimestamps, completionVersions)
+    local addon = Private.Addon
+    if not addon or not addon.Database then return end
+    addon.Database.completed = addon.Database.completed or {}
+    completionVersions = completionVersions or {}
+    for id, _ in pairs(completedAchievements or {}) do
+        local ts = (completedTimestamps and completedTimestamps[id]) or time()
+        local ver = completionVersions[id] and tostring(completionVersions[id]) or nil
+        addon.Database.completed[id] = {
+            completedAt = ts,
+            week = nil, -- do not guess historical week for loaded data
+            addonVersion = ver,
+        }
+    end
+end
+
+---Clear a single achievement from the completed cache (call when engine uncompletes).
+---@param achievementId number
+function databaseUtils:ClearCompletion(achievementId)
+    local addon = Private.Addon
+    if not addon or not addon.Database then return end
+    if addon.Database.completed and addon.Database.completed[achievementId] then
+        addon.Database.completed[achievementId] = nil
+    end
+end
+
+---Clear all completed cache (e.g. on full progress wipe).
+function databaseUtils:ClearAllCompletions()
+    local addon = Private.Addon
+    if not addon or not addon.Database then return end
+    addon.Database.completed = {}
+end
+
 ---Mark an achievement as completed
 ---@param achievementId number
 ---@param timestamp? number
