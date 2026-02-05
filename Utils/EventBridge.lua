@@ -28,9 +28,11 @@ local Enums = Private.Enums
 ---| "FISH_CAUGHT"
 ---| "QUEST_COMPLETED"
 ---| "REPUTATION_GAINED"
+---| "RING_ENCHANTED"
 ---| "BADGE_EARNED"
 ---| "KEY_OBTAINED"
 ---| "EPIC_GEAR_EQUIPPED"
+---| "EMOTE_SENT"
 ---| "LOOT_ROLL_WON"
 ---| "ZONE_EXPLORED"
 ---| "GOLD_MILESTONE"
@@ -66,6 +68,11 @@ local BOSS_DATA = {
     [15550] = { name = "Attumen the Huntsman", instance = "Karazhan", isFinalBoss = false },
     [16457] = { name = "Moroes", instance = "Karazhan", isFinalBoss = false },
     [16812] = { name = "Maiden of Virtue", instance = "Karazhan", isFinalBoss = false },
+    [17521] = { name = "The Big Bad Wolf", instance = "Karazhan", isFinalBoss = false },
+    [18168] = { name = "The Crone", instance = "Karazhan", isFinalBoss = false },
+    [17561] = { name = "Julianne", instance = "Karazhan", isFinalBoss = false },
+    [16816] = { name = "Chess Event", instance = "Karazhan", isFinalBoss = false },
+    [16179] = { name = "Hyakiss the Lurker", instance = "Karazhan", isFinalBoss = false },
     [15691] = { name = "The Curator", instance = "Karazhan", isFinalBoss = false },
     [15688] = { name = "Terestian Illhoof", instance = "Karazhan", isFinalBoss = false },
     [16524] = { name = "Shade of Aran", instance = "Karazhan", isFinalBoss = false },
@@ -166,6 +173,7 @@ local BOSS_DATA = {
     -- Auchindoun: Sethekk Halls
     [18472] = { name = "Darkweaver Syth", instance = "Sethekk Halls", isFinalBoss = false },
     [18473] = { name = "Talon King Ikiss", instance = "Sethekk Halls", isFinalBoss = true },
+    [23035] = { name = "Anzu", instance = "Sethekk Halls", isFinalBoss = false },
 
     -- Tempest Keep: Mechanar
     [19218] = { name = "Mechano-Lord Capacitus", instance = "The Mechanar", isFinalBoss = false },
@@ -267,6 +275,7 @@ function eventBridge:Init()
     self:RegisterWowEvent("TRADE_SKILL_UPDATE")
     self:RegisterWowEvent("CHAT_MSG_SKILL")
     self:RegisterWowEvent("CHAT_MSG_SYSTEM")
+    self:RegisterWowEvent("CHAT_MSG_EMOTE")
     self:RegisterWowEvent("CHAT_MSG_BG_SYSTEM_ALLIANCE")
     self:RegisterWowEvent("CHAT_MSG_BG_SYSTEM_HORDE")
     self:RegisterWowEvent("CHAT_MSG_BG_SYSTEM_NEUTRAL")
@@ -442,6 +451,8 @@ function eventBridge:OnWowEvent(event, ...)
         self:HandleSkillMessage(...)
     elseif event == "CHAT_MSG_SYSTEM" then
         self:HandleSystemMessage(...)
+    elseif event == "CHAT_MSG_EMOTE" then
+        self:HandleEmote(...)
     elseif event == "CHAT_MSG_BG_SYSTEM_ALLIANCE" or event == "CHAT_MSG_BG_SYSTEM_HORDE" or event == "CHAT_MSG_BG_SYSTEM_NEUTRAL" then
         self:HandleBGSystemMessage(...)
     elseif event == "ARENA_TEAM_UPDATE" or event == "ARENA_TEAM_ROSTER_UPDATE" then
@@ -702,6 +713,35 @@ end
 -- TBC combat log format: timestamp, event, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, ...
 -------------------------------------------------------------------------------
 
+---Check if a GUID belongs to a party or raid member (including the player)
+---@param guid string
+---@return boolean
+function eventBridge:IsPartyOrRaidMemberGUID(guid)
+    -- Check if it's the player
+    if guid == UnitGUID("player") then
+        return true
+    end
+
+    -- Check if in raid
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            if UnitGUID("raid" .. i) == guid then
+                return true
+            end
+        end
+
+    -- Check if in party (5-man group)
+    elseif IsInGroup() then
+        for i = 1, GetNumSubgroupMembers() do
+            if UnitGUID("party" .. i) == guid then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 function eventBridge:HandleCombatLog(...)
     local timestamp, subevent, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags = CombatLogGetCurrentEventInfo()
 
@@ -772,20 +812,23 @@ function eventBridge:HandleCombatLog(...)
         end
     end
 
-    -- Handle spell damage to player (mechanic fail detection)
+    -- Handle spell damage to party/raid members (mechanic fail detection)
     -- TBC spell info starts at arg 9: spellId, spellName, spellSchool
-    if subevent == "SPELL_DAMAGE" and destGUID == playerGUID then
+    if subevent == "SPELL_DAMAGE" and self:IsPartyOrRaidMemberGUID(destGUID) then
         if self.dungeonState.encounterActive then
             local spellId, spellName = select(9, ...)
 
             -- Track fail count for this encounter
             self.dungeonState.mechanicFailCount = (self.dungeonState.mechanicFailCount or 0) + 1
 
+            -- Strip realm name if present (combat log may include "Name-Realm")
+            local victimName = destName and (destName:gsub("%-.*", "")) or "Unknown"
+
             self:Fire("DUNGEON_MECHANIC_FAILED", {
                 mechanicName = spellName or "Unknown",
                 bossName = self.dungeonState.currentBoss or "Unknown",
                 instance = self.dungeonState.instanceName or "Unknown",
-                playerName = UnitName("player"),
+                playerName = victimName,
                 failCount = self.dungeonState.mechanicFailCount,
             })
         end
@@ -1134,6 +1177,21 @@ function eventBridge:HandleSpellcastSucceeded(unit, castGUID, spellId)
         return
     end
 
+    -- Ring enchant detection (TBC Enchanter-only ring enchants)
+    local ringEnchants = {
+        ["Enchant Ring - Spellpower"] = true,
+        ["Enchant Ring - Healing Power"] = true,
+        ["Enchant Ring - Stats"] = true,
+        ["Enchant Ring - Striking"] = true,
+    }
+    if ringEnchants[spellName] then
+        self:Fire("RING_ENCHANTED", {
+            enchantName = spellName,
+            spellId = spellId,
+        })
+        return
+    end
+
     -- Check for crafting spells
     local craftInfo = CRAFTING_SPELL_IDS[spellId]
     if craftInfo and not craftInfo.isDisenchant then
@@ -1238,6 +1296,7 @@ function eventBridge:GetProfessionIdByName(name)
         ["Cooking"] = 185,
         ["First Aid"] = 129,
         ["Fishing"] = 356,
+        ["Riding"] = 762,
     }
     return nameToId[name]
 end
@@ -1257,6 +1316,7 @@ local PROFESSION_ID_TO_NAME = {
     [185] = "Cooking",
     [129] = "First Aid",
     [356] = "Fishing",
+    [762] = "Riding",
 }
 
 function eventBridge:GetProfessionSkillLevel(professionId)
@@ -1343,11 +1403,14 @@ function eventBridge:HandleLootMessage(message)
                 if profession then
                     -- Get current skill level for this profession
                     local skillLevel = self:GetProfessionSkillLevel(profession)
+                    -- Get item quality
+                    local _, _, quality = GetItemInfo(itemId)
                     self:Fire("ITEM_CRAFTED", {
                         itemId = itemId,
                         itemName = itemName,
                         profession = profession,
                         skillLevel = skillLevel or 0,
+                        itemQuality = quality or 1,  -- Default to common if unavailable
                         count = 1,  -- TODO: multi-craft detection would need CHAT_MSG_LOOT quantity or similar
                     })
                 end
@@ -1378,11 +1441,13 @@ function eventBridge:HandleLootMessage(message)
         if itemId then
             local profession = self:DetectCraftingProfession(itemId, itemName)
             local skillLevel = profession and self:GetProfessionSkillLevel(profession) or 0
+            local _, _, quality = GetItemInfo(itemId)
             self:Fire("ITEM_CRAFTED", {
                 itemId = itemId,
                 itemName = itemName,
                 profession = profession,
                 skillLevel = skillLevel,
+                itemQuality = quality or 1,  -- Default to common if unavailable
                 count = 1,  -- Single craft
             })
         end
@@ -1411,24 +1476,24 @@ end
 function eventBridge:DetectGatherType(itemId, itemName)
     if not itemName then return nil end
 
-    -- Mining ores and stones
-    local orePatterns = { "Ore", "Stone", "Adamantite", "Fel Iron", "Khorium", "Eternium" }
+    -- TBC Mining ores only
+    local orePatterns = { "Fel Iron", "Adamantite", "Khorium", "Eternium" }
     for _, pattern in ipairs(orePatterns) do
         if itemName:find(pattern) then
             return 1 -- Enums.GatherType.Mining
         end
     end
 
-    -- Herbalism
-    local herbPatterns = { "Lotus", "Bloom", "Leaf", "Herb", "Terocone", "Dreaming Glory", "Felweed", "Ragveil", "Flame Cap", "Netherbloom", "Nightmare Vine", "Mana Thistle", "Ancient Lichen" }
+    -- TBC Herbalism only
+    local herbPatterns = { "Felweed", "Dreaming Glory", "Terocone", "Ragveil", "Flame Cap", "Netherbloom", "Nightmare Vine", "Mana Thistle", "Ancient Lichen", "Fel Lotus" }
     for _, pattern in ipairs(herbPatterns) do
         if itemName:find(pattern) then
             return 2 -- Enums.GatherType.Herbalism
         end
     end
 
-    -- Skinning
-    local skinPatterns = { "Leather", "Hide", "Scale", "Knothide", "Fel Hide", "Nether Dragonscales" }
+    -- TBC Skinning only
+    local skinPatterns = { "Knothide Leather", "Fel Hide", "Nether Dragonscales", "Thick Clefthoof Leather", "Cobra Scales", "Wind Scales" }
     for _, pattern in ipairs(skinPatterns) do
         if itemName:find(pattern) then
             return 3 -- Enums.GatherType.Skinning
@@ -1850,6 +1915,39 @@ function eventBridge:HandleSystemMessage(message)
             })
             break
         end
+    end
+end
+
+function eventBridge:HandleEmote(message)
+    if not message then return end
+
+    -- CHAT_MSG_EMOTE format: "PlayerName roars." or similar
+    -- We need to detect which emote was used and check the target
+
+    local emoteType = nil
+    local lowerMessage = message:lower()
+
+    -- Detect emote type from message
+    if lowerMessage:find("roar") then
+        emoteType = "roar"
+    elseif lowerMessage:find("dance") then
+        emoteType = "dance"
+    elseif lowerMessage:find("cheer") then
+        emoteType = "cheer"
+    end
+
+    if not emoteType then return end
+
+    -- Get player's current target
+    local targetName = UnitName("target")
+    local targetExists = UnitExists("target")
+
+    -- Only fire if we have a valid target
+    if targetExists and targetName then
+        self:Fire("EMOTE_SENT", {
+            emoteType = emoteType,
+            targetName = targetName,
+        })
     end
 end
 

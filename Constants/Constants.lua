@@ -9,7 +9,9 @@ local constants = {}
 Private.constants = constants
 
 constants.ADDON_NAME = ADDON_NAME
-constants.ADDON_VERSION = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version")
+local rawVersion = C_AddOns and C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version")
+-- Replace placeholder with "preview" for development builds
+constants.ADDON_VERSION = (rawVersion == "@project-version@") and "preview" or rawVersion
 constants.ADDON_MEDIA_PATH = [[Interface\AddOns\]] .. constants.ADDON_NAME .. [[\Media]]
 constants.INTERFACE_VERSION = select(4, GetBuildInfo())
 
@@ -164,6 +166,7 @@ Enums.Profession = {
     Cooking = 185,
     FirstAid = 129,
     Fishing = 356,
+    Riding = 762,
 }
 
 -- FishPoolType: Fishing pool types

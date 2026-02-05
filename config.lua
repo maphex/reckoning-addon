@@ -1177,7 +1177,23 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "REPUTATION_GAINED",
-			conditions = { standing = "Exalted" }
+			conditions = {
+				standing = "Exalted",
+				faction = {
+					"Cenarion Expedition",
+					"The Consortium",
+					"Honor Hold",
+					"Thrallmar",
+					"Kurenai",
+					"The Mag'har",
+					"Lower City",
+					"The Sha'tar",
+					"The Aldor",
+					"The Scryers",
+					"Keepers of Time",
+					"The Violet Eye"
+				}
+			}
 		},
 		progress = { type = "count", required = 2 }
 	},
@@ -1219,10 +1235,10 @@ aUtils:RegisterAchievements({
 		icon = 894556,
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
-			event = "QUEST_COMPLETED",
-			conditions = {}
+			event = "ACHIEVEMENT_COMPLETED",
+			conditions = { subCategory = 50 }
 		},
-		progress = { type = "criteria", required = 7 }
+		progress = { type = "meta", subCategory = 50, required = 9 }
 	},
 	{
 		id = 5007,
@@ -1265,7 +1281,7 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
-			conditions = {}
+			conditions = { instance = { "Serpentshrine Cavern", "Tempest Keep" } }
 		},
 		progress = { type = "criteria", required = 10 }
 	},
@@ -1492,7 +1508,7 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "SKILL_UP",
-			conditions = { newLevel = 300 }
+			conditions = { profession = Enums.Profession.Riding, newLevel = 300 }
 		}
 	},
 	{
@@ -1621,14 +1637,14 @@ aUtils:RegisterAchievements({
 	{
 		id = 5035,
 		name = "The Reaver Whisperer",
-		description = "/Whisper to a Fel Reaver",
+		description = "/roar at a Fel Reaver",
 		points = 5,
 		category = 5,
 		icon = 136156,
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
-			event = "CREATURE_KILLED",
-			conditions = { creatureName = "Fel Reaver" }
+			event = "EMOTE_SENT",
+			conditions = { emoteType = "roar", targetName = "Fel Reaver" }
 		}
 	},
 	{
@@ -1688,7 +1704,10 @@ aUtils:RegisterAchievements({
 		startWeek = 1,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Cooking }
+			conditions = {
+				profession = Enums.Profession.Cooking,
+				itemName = { "Warp Burger", "Golden Fish Sticks", "Spicy Crawdad" }
+			}
 		},
 		progress = { type = "count", required = 40 }
 	},
@@ -1873,7 +1892,10 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Jewelcrafting }
+			conditions = {
+				profession = Enums.Profession.Jewelcrafting,
+				itemQuality = Enums.ItemQuality.Rare
+			}
 		},
 		progress = { type = "count", required = 20 }
 	},
@@ -1918,7 +1940,10 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Leatherworking }
+			conditions = {
+				profession = Enums.Profession.Leatherworking,
+				itemName = { "Cobrahide Leg Armor", "Clefthoof Leg Armor" }
+			}
 		},
 		progress = { type = "count", required = 1 }
 	},
@@ -1933,7 +1958,9 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
-			conditions = {}
+			conditions = {
+				instance = { "Mana-Tombs", "Auchenai Crypts", "Sethekk Halls", "Shadow Labyrinth" }
+			}
 		},
 		progress = { type = "count", required = 20 }
 	},
@@ -1948,7 +1975,10 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Alchemy }
+			conditions = {
+				profession = Enums.Profession.Alchemy,
+				itemName = { "Haste Potion", "Destruction Potion" }
+			}
 		},
 		progress = { type = "count", required = 20 }
 	},
@@ -1963,7 +1993,10 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Tailoring }
+			conditions = {
+				profession = Enums.Profession.Tailoring,
+				itemName = { "Runic Spellthread", "Silver Spellthread", "Mystic Spellthread", "Golden Spellthread" }
+			}
 		},
 		progress = { type = "count", required = 1 }
 	},
@@ -1978,7 +2011,37 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Alchemy }
+			conditions = {
+				profession = Enums.Profession.Alchemy,
+				itemName = {
+					-- TBC Flasks
+					"Flask of Fortification",
+					"Flask of Mighty Restoration",
+					"Flask of Relentless Assault",
+					"Flask of Blinding Light",
+					"Flask of Pure Death",
+					"Flask of Chromatic Wonder",
+					-- TBC Battle Elixirs
+					"Elixir of Major Shadow Power",
+					"Fel Strength Elixir",
+					"Elixir of Major Agility",
+					"Elixir of Major Firepower",
+					"Elixir of Major Frost Power",
+					"Elixir of Healing Power",
+					"Elixir of Mastery",
+					"Elixir of Major Strength",
+					"Adept's Elixir",
+					"Onslaught Elixir",
+					-- TBC Guardian Elixirs
+					"Elixir of Empowerment",
+					"Elixir of Major Mageblood",
+					"Elixir of Major Defense",
+					"Elixir of Ironskin",
+					"Elixir of Draenic Wisdom",
+					"Earthen Elixir",
+					"Elixir of Major Fortitude"
+				}
+			}
 		},
 		progress = { type = "count", required = 15 }
 	},
@@ -1993,7 +2056,10 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "RESOURCE_GATHERED",
-			conditions = { gatherType = Enums.GatherType.Mining }
+			conditions = {
+				gatherType = Enums.GatherType.Mining,
+				itemName = { "Fel Iron Ore", "Adamantite Ore", "Khorium Ore" }
+			}
 		},
 		progress = { type = "count", required = 50 }
 	},
@@ -2087,7 +2153,10 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Alchemy }
+			conditions = {
+				profession = Enums.Profession.Alchemy,
+				itemName = { "Haste Potion", "Destruction Potion", "Super Mana Potion" }
+			}
 		},
 		progress = { type = "count", required = 500 }
 	},
@@ -2102,10 +2171,41 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Alchemy }
+			conditions = {
+				profession = Enums.Profession.Alchemy,
+				itemName = {
+					-- TBC Flasks
+					"Flask of Fortification",
+					"Flask of Mighty Restoration",
+					"Flask of Relentless Assault",
+					"Flask of Blinding Light",
+					"Flask of Pure Death",
+					"Flask of Chromatic Wonder",
+					-- TBC Battle Elixirs
+					"Elixir of Major Shadow Power",
+					"Fel Strength Elixir",
+					"Elixir of Major Agility",
+					"Elixir of Major Firepower",
+					"Elixir of Major Frost Power",
+					"Elixir of Healing Power",
+					"Elixir of Mastery",
+					"Elixir of Major Strength",
+					"Adept's Elixir",
+					"Onslaught Elixir",
+					"Elixir of Empowerment",
+					-- TBC Guardian Elixirs
+					"Elixir of Major Mageblood",
+					"Elixir of Major Defense",
+					"Elixir of Ironskin",
+					"Elixir of Draenic Wisdom",
+					"Earthen Elixir",
+					"Elixir of Major Fortitude"
+				}
+			}
 		},
 		progress = { type = "count", required = 700 }
 	},
+	-- TODO: This is not currently trackable.
 	{
 		id = 4008,
 		name = "The Collector of Glow",
@@ -2147,8 +2247,8 @@ aUtils:RegisterAchievements({
 		icon = 132854,
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
-			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Enchanting }
+			event = "RING_ENCHANTED",
+			conditions = {}
 		},
 		progress = { type = "count", required = 2 }
 	},
@@ -2192,7 +2292,10 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Tailoring }
+			conditions = {
+				profession = Enums.Profession.Tailoring,
+				itemName = { "Netherweave Bag", "Heavy Netherweave Bag" }
+			}
 		},
 		progress = { type = "count", required = 120 }
 	},
@@ -2222,7 +2325,16 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Engineering }
+			conditions = {
+				profession = Enums.Profession.Engineering,
+				itemName = {
+					"Deathblow X11 Goggles",
+					"Furious Gizmatic Goggles",
+					"Wonderheal XT68 Shades",
+					"Hyper-Magnified Moon Specs",
+					"Quad Deathblow X44 Goggles"
+				}
+			}
 		}
 	},
 	{
@@ -2236,8 +2348,25 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Leatherworking }
-		}
+			conditions = {
+				profession = Enums.Profession.Leatherworking,
+				itemName = {
+					"Cobrascale Gloves",
+					"Cobrascale Hood",
+					"Earthen Netherscale Boots",
+					"Gloves of the Living Touch",
+					"Hood of Primal Life",
+					"Living Dragonscale Helm",
+					"Netherdrake Gloves",
+					"Netherdrake Helm",
+					"Thick Netherscale Breastplate",
+					"Windslayer Wraps",
+					"Windscale Hood",
+					"Windstrike Gloves"
+				}
+			}
+		},
+		progress = { type = "count", required = 1 }
 	},
 	{
 		id = 4017,
@@ -2250,7 +2379,23 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Tailoring }
+			conditions = {
+				profession = Enums.Profession.Tailoring,
+				itemName = {
+					-- Spellfire set
+					"Spellfire Belt",
+					"Spellfire Gloves",
+					"Spellfire Robe",
+					-- Frozen Shadoweave set
+					"Frozen Shadoweave Shoulders",
+					"Frozen Shadoweave Boots",
+					"Frozen Shadoweave Robe",
+					-- Primal Mooncloth set
+					"Primal Mooncloth Belt",
+					"Primal Mooncloth Shoulders",
+					"Primal Mooncloth Robe"
+				}
+			}
 		}
 	},
 	{
@@ -2263,7 +2408,21 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "SKILL_UP",
-			conditions = { newLevel = 375 }
+			conditions = {
+				newLevel = 375,
+				profession = {
+					Enums.Profession.Alchemy,
+					Enums.Profession.Blacksmithing,
+					Enums.Profession.Enchanting,
+					Enums.Profession.Engineering,
+					Enums.Profession.Herbalism,
+					Enums.Profession.Jewelcrafting,
+					Enums.Profession.Leatherworking,
+					Enums.Profession.Mining,
+					Enums.Profession.Skinning,
+					Enums.Profession.Tailoring
+				}
+			}
 		},
 		progress = { type = "count", required = 2 }
 	},
@@ -2278,7 +2437,10 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Jewelcrafting }
+			conditions = {
+				profession = Enums.Profession.Jewelcrafting,
+				itemQuality = Enums.ItemQuality.Rare
+			}
 		},
 		progress = { type = "count", required = 100 }
 	},
@@ -2293,7 +2455,10 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Jewelcrafting }
+			conditions = {
+				profession = Enums.Profession.Jewelcrafting,
+				itemQuality = Enums.ItemQuality.Rare
+			}
 		},
 		progress = { type = "count", required = 400 }
 	},
@@ -2308,9 +2473,13 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Blacksmithing }
+			conditions = {
+				profession = Enums.Profession.Blacksmithing,
+				itemQuality = Enums.ItemQuality.Epic
+			}
 		}
 	},
+	-- TODO: This is not currently tracking item level.
 	{
 		id = 4022,
 		name = "Forge of Reckoning",
@@ -2431,6 +2600,7 @@ aUtils:RegisterAchievements({
 		},
 		progress = { type = "count", required = 1000 }
 	},
+	-- TODO: Filter to only count non-fish items.
 	{
 		id = 4030,
 		name = "Catching Strays",
@@ -3459,9 +3629,11 @@ aUtils:RegisterAchievements({
 		subCategory = 20,
 		icon = 135767,
 		cadence = Enums.Cadence.AllTime,
+		-- TODO: Implement fail tracking for uninterrupted Eternal Affection casts.
+		-- Requires combat log parsing to track spell interrupts.
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
-			conditions = { bossName = "Romulo and Julianne" }
+			conditions = { bossName = "Julianne" }
 		}
 	},
 	{
@@ -3475,7 +3647,13 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
-			conditions = {}
+			conditions = {
+				bossName = {
+					"Julianne",
+					"The Big Bad Wolf",
+					"The Crone"
+				}
+			}
 		},
 		progress = { type = "criteria", required = 3 }
 	},
@@ -3509,6 +3687,7 @@ aUtils:RegisterAchievements({
 			conditions = { bossName = "Moroes", duration = function(d) return d <= 80 end }
 		}
 	},
+	-- TODO: Not currently tracking looting of books.
 	{
 		id = 2007,
 		name = "Books of Power",
@@ -3536,8 +3715,11 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.AllTime,
 		startWeek = 2,
 		trigger = {
-			event = "QUEST_COMPLETED",
-			conditions = {}
+			event = "EMOTE_SENT",
+			conditions = {
+				emoteType = "dance",
+				targetName = "Spectral Performer"
+			}
 		}
 	},
 	{
@@ -3550,6 +3732,8 @@ aUtils:RegisterAchievements({
 		icon = 132224,
 		cadence = Enums.Cadence.AllTime,
 		startWeek = 2,
+		-- TODO: Implement fail tracking for damage taken while polymorphed as Little Red Riding Hood.
+		-- Requires combat log parsing to track damage events on players with specific debuff.
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "The Big Bad Wolf" }
@@ -3565,9 +3749,14 @@ aUtils:RegisterAchievements({
 		icon = 136144,
 		cadence = Enums.Cadence.AllTime,
 		startWeek = 2,
+		-- TODO: Currently only tracks when YOU cheer at Barnes. To fully implement,
+		-- need to track all raid members cheering (may require guild communication/tracking).
 		trigger = {
-			event = "QUEST_COMPLETED",
-			conditions = {}
+			event = "EMOTE_SENT",
+			conditions = {
+				emoteType = "cheer",
+				targetName = "Barnes"
+			}
 		}
 	},
 	{
@@ -3583,6 +3772,10 @@ aUtils:RegisterAchievements({
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "The Crone" }
+		},
+		failCondition = {
+			event = "DUNGEON_MECHANIC_FAILED",
+			conditions = { mechanicName = "Cyclone" }
 		}
 	},
 	{
@@ -3718,6 +3911,10 @@ aUtils:RegisterAchievements({
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Shade of Aran" }
+		},
+		failCondition = {
+			event = "DUNGEON_MECHANIC_FAILED",
+			conditions = { mechanicName = "Flame Wreath" }
 		}
 	},
 	{
@@ -3730,6 +3927,8 @@ aUtils:RegisterAchievements({
 		icon = 135831,
 		cadence = Enums.Cadence.AllTime,
 		startWeek = 4,
+		-- TODO: Implement fail tracking for deaths to Shadow Nova or Infernal crashes.
+		-- Requires combat log parsing to track death events and their sources.
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Prince Malchezaar" }
@@ -3763,6 +3962,10 @@ aUtils:RegisterAchievements({
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Shade of Aran" }
+		},
+		failCondition = {
+			event = "DUNGEON_MECHANIC_FAILED",
+			conditions = { mechanicName = "Frostbolt" }
 		}
 	},
 	{
@@ -3805,6 +4008,8 @@ aUtils:RegisterAchievements({
 		icon = 136218,
 		cadence = Enums.Cadence.AllTime,
 		startWeek = 5,
+		-- TODO: Implement fail tracking for imp kills during encounter.
+		-- Requires combat log parsing to track creature kills and identify imp deaths.
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Terestian Illhoof" }
@@ -3825,6 +4030,10 @@ aUtils:RegisterAchievements({
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = { bossName = "Magtheridon" }
+		},
+		failCondition = {
+			event = "DUNGEON_MECHANIC_FAILED",
+			conditions = { mechanicName = "Blast Nova" }
 		}
 	},
 	{
@@ -3837,9 +4046,11 @@ aUtils:RegisterAchievements({
 		icon = 135237,
 		cadence = Enums.Cadence.AllTime,
 		startWeek = 2,
+		-- TODO: Currently tracks zero deaths. Ideally should track deaths specifically from Shatter.
+		-- Requires combat log parsing to track death sources.
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
-			conditions = { bossName = "Gruul the Dragonkiller" }
+			conditions = { bossName = "Gruul the Dragonkiller", deaths = 0 }
 		}
 	},
 	{
