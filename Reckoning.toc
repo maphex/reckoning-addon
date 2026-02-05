@@ -1,4 +1,4 @@
-## Interface: 20505 120000
+## Interface: 20505
 ## Version: @project-version@
 ## Title: Reckoning
 ## Author: Rasu | Larsj_02
