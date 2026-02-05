@@ -1175,6 +1175,7 @@ aUtils:RegisterAchievements({
 		subCategory = 51,
 		icon = 134475,
 		cadence = Enums.Cadence.AllTime,
+		-- Outland factions only (TBC); progress = unique factions at Exalted
 		trigger = {
 			event = "REPUTATION_GAINED",
 			conditions = {
@@ -1195,7 +1196,7 @@ aUtils:RegisterAchievements({
 				}
 			}
 		},
-		progress = { type = "count", required = 2 }
+		progress = { type = "criteria", criteriaKey = "faction", required = 2 }
 	},
 	{
 		id = 5004,
