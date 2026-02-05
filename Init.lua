@@ -30,6 +30,10 @@ local defaultDatabase = {
     guildCache = {
         members = {},             -- PlayerName -> GuildMemberData
         events = {},              -- Recent guild events
+        tickets = {},             -- TicketId -> AchievementBugTicket
+        ticketsSavedAt = 0,       -- Last ticket cache save time
+        achievementCorrections = {}, -- CorrectionId -> AchievementCorrection (officer invalidate/revalidate)
+        achievementCorrectionsSavedAt = 0,
         savedAt = 0,              -- Last cache save time
     },
 }

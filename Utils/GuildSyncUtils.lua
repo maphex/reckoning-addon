@@ -15,6 +15,7 @@ local const = Private.constants
 ---@field version string Addon version or "N/A"
 ---@field lastSeen number Unix timestamp of last seen
 ---@field completions table<number, number> achievementId -> timestamp
+---@field completionVersions table<number, string>|nil achievementId -> addon version at completion (for correction gating)
 ---@field totalPoints number Total achievement points
 
 ---@class GuildEventData
@@ -108,6 +109,35 @@ function guildSync:IsProtocolCompatible(data)
         return false
     end
     return true
+end
+
+--- Recalculate member.totalPoints using corrections and version gating.
+---@param member table must have completions (achievementId -> timestamp); completionVersions and version used for gating
+function guildSync:RecalculateMemberPoints(member)
+    if not member or not member.completions then return end
+    local correctionSync = Private.CorrectionSyncUtils
+    if not correctionSync or not correctionSync.ShouldCountAchievementPoints then
+        local total = 0
+        for achievementId, _ in pairs(member.completions) do
+            local achievement = Private.AchievementUtils:GetAchievement(achievementId)
+            if achievement then total = total + (achievement.points or 0) end
+        end
+        member.totalPoints = total
+        return
+    end
+    local versions = member.completionVersions or {}
+    local fallbackVersion = member.version
+    local total = 0
+    for achievementId, completedAt in pairs(member.completions) do
+        local achievement = Private.AchievementUtils:GetAchievement(achievementId)
+        if achievement then
+            local ver = versions[achievementId] or fallbackVersion
+            if correctionSync:ShouldCountAchievementPoints(achievementId, completedAt, ver) then
+                total = total + (achievement.points or 0)
+            end
+        end
+    end
+    member.totalPoints = total
 end
 
 ---@param sender string?
@@ -901,13 +931,28 @@ function guildSync:SendSyncResponse(targetPlayer, requestId)
 
     -- Get our completions
     local completions = engine:GetAllCompletedWithTimestamps()
+    local addon = Private.Addon
+    local db = addon and addon.Database
+    local correctionSync = Private.CorrectionSyncUtils
 
-    -- Calculate total points
+    -- Calculate total points (correction- and version-aware)
     local totalPoints = 0
-    for achievementId, _ in pairs(completions) do
-        local achievement = Private.AchievementUtils:GetAchievement(achievementId)
-        if achievement then
-            totalPoints = totalPoints + (achievement.points or 0)
+    if correctionSync and correctionSync.ShouldCountAchievementPoints then
+        local completed = (db and db.completed) or {}
+        for achievementId, completedAt in pairs(completions) do
+            local achievement = Private.AchievementUtils:GetAchievement(achievementId)
+            if achievement then
+                local rec = completed[achievementId]
+                local ver = rec and rec.addonVersion and tostring(rec.addonVersion) or nil
+                if correctionSync:ShouldCountAchievementPoints(achievementId, completedAt, ver) then
+                    totalPoints = totalPoints + (achievement.points or 0)
+                end
+            end
+        end
+    else
+        for achievementId, _ in pairs(completions) do
+            local achievement = Private.AchievementUtils:GetAchievement(achievementId)
+            if achievement then totalPoints = totalPoints + (achievement.points or 0) end
         end
     end
 
@@ -1231,17 +1276,11 @@ function guildSync:OnCompletionReceived(data)
     if member then
         member.completions = member.completions or {}
         member.completions[data.achievementId] = data.timestamp or time()
+        member.completionVersions = member.completionVersions or {}
+        member.completionVersions[data.achievementId] = (data.version and tostring(data.version)) or member.version
         member.lastSeen = time()
 
-        -- Recalculate points
-        local totalPoints = 0
-        for achievementId, _ in pairs(member.completions) do
-            local achievement = Private.AchievementUtils:GetAchievement(achievementId)
-            if achievement then
-                totalPoints = totalPoints + (achievement.points or 0)
-            end
-        end
-        member.totalPoints = totalPoints
+        self:RecalculateMemberPoints(member)
     end
 
     -- Save and update UI
@@ -1346,16 +1385,24 @@ function guildSync:MergeMemberData(newData)
     local existing = self.memberData[name]
 
     if not existing then
-        -- New member
-        self.memberData[name] = {
+        -- New member: use newData.version as completion version for all (sync/heartbeat don't send per-completion version)
+        local completions = newData.completions or {}
+        local completionVersions = {}
+        for achievementId, _ in pairs(completions) do
+            completionVersions[achievementId] = newData.version
+        end
+        local newMember = {
             name = name,
             class = newData.class,
             classId = newData.classId,
             version = newData.version,
             lastSeen = newData.lastSeen or time(),
-            completions = newData.completions or {},
-            totalPoints = newData.totalPoints or 0,
+            completions = completions,
+            completionVersions = completionVersions,
+            totalPoints = 0,
         }
+        self.memberData[name] = newMember
+        self:RecalculateMemberPoints(newMember)
     else
         -- Merge with existing - prefer newer data
         if (newData.lastSeen or 0) >= (existing.lastSeen or 0) then
@@ -1363,18 +1410,20 @@ function guildSync:MergeMemberData(newData)
             existing.classId = newData.classId or existing.classId
             existing.version = newData.version or existing.version
             existing.lastSeen = newData.lastSeen or existing.lastSeen
-            existing.totalPoints = newData.totalPoints or existing.totalPoints
         end
 
-        -- Merge completions - keep newest timestamp for each achievement
+        -- Merge completions - keep newest timestamp; use newData.version for merged entries when we don't have exact version
         if newData.completions then
             existing.completions = existing.completions or {}
+            existing.completionVersions = existing.completionVersions or {}
             for achievementId, timestamp in pairs(newData.completions) do
                 local existingTimestamp = existing.completions[achievementId]
                 if not existingTimestamp or timestamp > existingTimestamp then
                     existing.completions[achievementId] = timestamp
+                    existing.completionVersions[achievementId] = existing.completionVersions[achievementId] or newData.version or existing.version
                 end
             end
+            self:RecalculateMemberPoints(existing)
         end
     end
 
@@ -1462,41 +1511,52 @@ function guildSync:BroadcastCompletion(achievementId)
     -- Add to our own events
     self:AddEvent(achievementId, playerName, className, timestamp)
 
-    -- Update our own member data
+    -- Update our own member data (completions + completionVersions from db for correction gating)
     local engine = Private.AchievementEngine
     if engine then
         local completions = engine:GetAllCompletedWithTimestamps()
-        local totalPoints = 0
+        local addon = Private.Addon
+        local db = addon and addon.Database
+        local completed = (db and db.completed) or {}
+        local completionVersions = {}
         for id, _ in pairs(completions) do
-            local achievement = Private.AchievementUtils:GetAchievement(id)
-            if achievement then
-                totalPoints = totalPoints + (achievement.points or 0)
-            end
+            local rec = completed[id]
+            completionVersions[id] = (rec and rec.addonVersion and tostring(rec.addonVersion)) or const.ADDON_VERSION
         end
 
-        self:UpdateMemberInfo(playerName, {
-            class = className,
-            version = const.ADDON_VERSION or "1.0.0",
-            lastSeen = timestamp,
-            totalPoints = totalPoints,
-        })
-
-        -- Store completions
-        if self.memberData[playerName] then
-            self.memberData[playerName].completions = completions
+        local member = self.memberData[playerName]
+        if not member then
+            self.memberData[playerName] = {
+                name = playerName,
+                class = className,
+                classId = 0,
+                version = const.ADDON_VERSION or "1.0.0",
+                lastSeen = timestamp,
+                completions = completions,
+                completionVersions = completionVersions,
+                totalPoints = 0,
+            }
+            member = self.memberData[playerName]
+        else
+            member.completions = completions
+            member.completionVersions = completionVersions
+            member.version = const.ADDON_VERSION or "1.0.0"
+            member.lastSeen = timestamp
         end
+        self:RecalculateMemberPoints(member)
 
         -- Ensure heartbeat data is rebuilt soon (we have new completion state).
         self._heartbeatLastRebuild = 0
     end
 
-    -- Broadcast to guild
+    -- Broadcast to guild (include version for correction/version gating)
     Private.CommsUtils:SendMessage(MSG_TYPE.COMPLETION, {
         achievementId = achievementId,
         playerName = playerName,
         playerClass = className,
         protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
         timestamp = timestamp,
+        version = const.ADDON_VERSION or "1.0.0",
     }, "GUILD")
 
     -- Save
@@ -1713,6 +1773,33 @@ function guildSync:NotifyUIUpdate()
             cb:Trigger()
         end
     end
+end
+
+---Stop the heartbeat ticker (e.g. when leaving guild). Safe to call when not running.
+function guildSync:StopHeartbeat()
+    if self.heartbeatTicker and self.heartbeatTicker.Cancel then
+        self.heartbeatTicker:Cancel()
+    end
+    self.heartbeatTicker = nil
+end
+
+---Clear in-memory guild sync state and persist empty cache. Call when leaving or switching guild.
+function guildSync:WipeGuildSyncState()
+    self.memberData = {}
+    self.recentEvents = {}
+    self.recentNotified = {}
+    self.versionNotifyCooldown = {}
+    self.pendingChunks = {}
+    self.lastResponseToRequester = {}
+    self.initialSyncDone = false
+
+    for shortName in pairs(self.pendingVersionChecks or {}) do
+        self:CancelPendingVersionCheck(shortName)
+    end
+    self.pendingVersionChecks = {}
+
+    self:SaveCachedData()
+    self:NotifyUIUpdate()
 end
 
 ---Trigger a manual sync (for UI button)

@@ -1,5 +1,6 @@
 ---@class AddonPrivate
 local Private = select(2, ...)
+local const = Private.constants
 
 -------------------------------------------------------------------------------
 -- Database Utils - Persistence with encoding/compression
@@ -466,6 +467,7 @@ function databaseUtils:CompleteAchievement(achievementId, timestamp)
     addon.Database.completed[achievementId] = {
         completedAt = timestamp or time(),
         week = self:GetCurrentWeek(),
+        addonVersion = (const and const.ADDON_VERSION) and tostring(const.ADDON_VERSION) or nil,
     }
 end
 
@@ -473,18 +475,19 @@ end
 ---@param achievementId number
 ---@return boolean
 ---@return number|nil completedAt
+---@return string|nil addonVersion addon version at completion time (nil for legacy entries)
 function databaseUtils:IsAchievementCompleted(achievementId)
     local addon = Private.Addon
-    if not addon or not addon.Database then return false, nil end
+    if not addon or not addon.Database then return false, nil, nil end
 
     local completed = addon.Database.completed or {}
     local data = completed[achievementId]
 
     if data then
-        return true, data.completedAt
+        return true, data.completedAt, data.addonVersion and tostring(data.addonVersion) or nil
     end
 
-    return false, nil
+    return false, nil, nil
 end
 
 ---Reset weekly achievements

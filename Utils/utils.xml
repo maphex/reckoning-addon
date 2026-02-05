@@ -22,4 +22,6 @@
     <script file="EventBridge.lua" />
     <script file="AchievementEngine.lua" />
     <script file="GuildSyncUtils.lua" />
+    <script file="TicketSyncUtils.lua" />
+    <script file="CorrectionSyncUtils.lua" />
 </Ui>

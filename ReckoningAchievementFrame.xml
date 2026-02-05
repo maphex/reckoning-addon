@@ -742,7 +742,7 @@
             <KeyValue key="backdropInfo" value="BACKDROP_ACHIEVEMENTS_0_64" type="global"/>
         </KeyValues>
         <Anchors>
-            <Anchor point="TOPLEFT" x="0" y="-104"/>
+            <Anchor point="CENTER" relativeTo="UIParent" relativePoint="CENTER" x="0" y="0"/>
         </Anchors>
         <Layers>
             <Layer level="BACKGROUND">
@@ -892,6 +892,21 @@
                 <Scripts>
                     <OnClick>
                         ReckoningAchievementFrame_SelectTab(2)
+                        PlaySound(SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB or "igCharacterInfoTab")
+                    </OnClick>
+                </Scripts>
+            </Button>
+            <Button name="$parentTab3" parentKey="Tab3" inherits="ReckoningAchievementFrameTabButtonTemplate" id="3" text="Admin">
+                <Anchors>
+                    <Anchor point="LEFT" relativeTo="$parentTab2" relativePoint="RIGHT">
+                        <Offset>
+                            <AbsDimension x="-5" y="0"/>
+                        </Offset>
+                    </Anchor>
+                </Anchors>
+                <Scripts>
+                    <OnClick>
+                        ReckoningAchievementFrame_SelectTab(3)
                         PlaySound(SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB or "igCharacterInfoTab")
                     </OnClick>
                 </Scripts>
@@ -1764,6 +1779,105 @@
                             </Frame>
                             <Frame setAllPoints="true" inherits="ReckoningGoldBorderBackdrop"/>
                         </Frames>
+                    </Frame>
+                </Frames>
+            </Frame>
+
+            <!-- Admin Tab Content (same layout as Guild: left Categories with sub-tabs, right Content) -->
+            <Frame name="$parentAdmin" parentKey="Admin" hidden="true">
+                <Anchors>
+                    <Anchor point="TOPLEFT" x="21" y="-19"/>
+                    <Anchor point="BOTTOMRIGHT" x="-19" y="20"/>
+                </Anchors>
+                <Frames>
+                    <!-- Admin Categories Panel (left side with sub-tabs, like Guild) -->
+                    <Frame name="$parentCategories" parentKey="Categories" inherits="ReckoningGoldBorderBackdrop">
+                        <Size x="198" y="0"/>
+                        <Anchors>
+                            <Anchor point="TOPLEFT"/>
+                            <Anchor point="BOTTOMLEFT"/>
+                        </Anchors>
+                        <Layers>
+                            <Layer level="BACKGROUND">
+                                <Texture parentKey="Background" file="Interface\AchievementFrame\UI-GuildAchievement-Parchment">
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" x="3" y="-3"/>
+                                        <Anchor point="BOTTOMRIGHT" x="-3" y="3"/>
+                                    </Anchors>
+                                    <TexCoords left="0" right="0.5" top="0" bottom="1"/>
+                                </Texture>
+                            </Layer>
+                        </Layers>
+                        <Frames>
+                            <Frame name="$parentContainer" parentKey="Container">
+                                <Anchors>
+                                    <Anchor point="TOPLEFT" x="0" y="-5"/>
+                                    <Anchor point="BOTTOMRIGHT" x="0" y="5"/>
+                                </Anchors>
+                                <Frames>
+                                    <Button name="$parentTicketsButton" parentKey="TicketsButton" inherits="ReckoningAchievementCategoryButtonTemplate">
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" x="0" y="0"/>
+                                        </Anchors>
+                                        <Scripts>
+                                            <OnLoad>
+                                                self.label:SetText("Tickets")
+                                            </OnLoad>
+                                            <OnClick>
+                                                ReckoningAdmin_SelectSubTab(self:GetParent():GetParent():GetParent():GetParent(), "tickets")
+                                                PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+                                            </OnClick>
+                                        </Scripts>
+                                    </Button>
+                                    <Button name="$parentActionsButton" parentKey="ActionsButton" inherits="ReckoningAchievementCategoryButtonTemplate">
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" relativeTo="$parentTicketsButton" relativePoint="BOTTOMLEFT" x="0" y="-2"/>
+                                        </Anchors>
+                                        <Scripts>
+                                            <OnLoad>
+                                                self.label:SetText("Actions")
+                                            </OnLoad>
+                                            <OnClick>
+                                                ReckoningAdmin_SelectSubTab(self:GetParent():GetParent():GetParent():GetParent(), "actions")
+                                                PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+                                            </OnClick>
+                                        </Scripts>
+                                    </Button>
+                                    <Button name="$parentLogButton" parentKey="LogButton" inherits="ReckoningAchievementCategoryButtonTemplate">
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" relativeTo="$parentActionsButton" relativePoint="BOTTOMLEFT" x="0" y="-2"/>
+                                        </Anchors>
+                                        <Scripts>
+                                            <OnLoad>
+                                                self.label:SetText("Log")
+                                            </OnLoad>
+                                            <OnClick>
+                                                ReckoningAdmin_SelectSubTab(self:GetParent():GetParent():GetParent():GetParent(), "log")
+                                                PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+                                            </OnClick>
+                                        </Scripts>
+                                    </Button>
+                                </Frames>
+                            </Frame>
+                        </Frames>
+                    </Frame>
+                    <!-- Admin Content Panel (right side) -->
+                    <Frame name="$parentContent" parentKey="Content">
+                        <Anchors>
+                            <Anchor point="TOPLEFT" relativeTo="$parentCategories" relativePoint="TOPRIGHT" x="0" y="0"/>
+                            <Anchor point="BOTTOMRIGHT"/>
+                        </Anchors>
+                        <Layers>
+                            <Layer level="BACKGROUND">
+                                <Texture parentKey="Background" file="Interface\AchievementFrame\UI-GuildAchievement-AchievementBackground">
+                                    <Anchors>
+                                        <Anchor point="TOPLEFT" x="3" y="-3"/>
+                                        <Anchor point="BOTTOMRIGHT" x="-3" y="3"/>
+                                    </Anchors>
+                                    <TexCoords left="0" right="1" top="0" bottom="0.5"/>
+                                </Texture>
+                            </Layer>
+                        </Layers>
                     </Frame>
                 </Frames>
             </Frame>

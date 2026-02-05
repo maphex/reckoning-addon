@@ -10,6 +10,10 @@ local Reckoning_Achievements = Reckoning.Achievements
 -- Get Private namespace (set by Init.lua)
 local Private = Reckoning.Private
 
+-- Forward declarations so guild event button OnClick (created earlier in file) can call these
+local EnsureBugReportDropDown
+local EnsureBugReportDialog
+
 -------------------------------------------------------------------------------
 -- Frame Registration (Deferred to avoid taint)
 -------------------------------------------------------------------------------
@@ -351,10 +355,29 @@ function Data:SearchAllAchievements(searchText)
 end
 
 function Data:GetTotalPointsEarned()
+    local priv = Reckoning and Reckoning.Private
+    local addon = priv and priv.Addon
+    local db = addon and addon.Database
+    local completedData = db and db.completed
+    local correctionSync = priv and priv.CorrectionSyncUtils
+
     local total = 0
     for _, achievement in pairs(self._achievements) do
-        if IsAchievementAvailable(achievement) and achievement.completed then
-            total = total + (achievement.points or 0)
+        if not (IsAchievementAvailable(achievement) and achievement.completed) then
+            -- skip
+        else
+            local points = achievement.points or 0
+            if correctionSync and correctionSync.ShouldCountAchievementPoints then
+                local completedAt, addonVersion = nil, nil
+                if completedData and achievement.id and completedData[achievement.id] then
+                    completedAt = completedData[achievement.id].completedAt
+                    addonVersion = completedData[achievement.id].addonVersion and tostring(completedData[achievement.id].addonVersion) or nil
+                end
+                if not correctionSync:ShouldCountAchievementPoints(achievement.id, completedAt, addonVersion) then
+                    points = 0
+                end
+            end
+            total = total + points
         end
     end
     return total
@@ -460,6 +483,775 @@ local function FormatProgress(achievement)
         return string.format("%d/%d", achievement.current, achievement.total)
     end
     return nil
+end
+
+-------------------------------------------------------------------------------
+-- Admin Tab: Ticket UI
+-------------------------------------------------------------------------------
+
+--- Called from XML when clicking Tickets, Actions, or Log in the Admin left panel.
+function ReckoningAdmin_SelectSubTab(frame, subTab)
+    print(string.format("[Reckoning:Admin] SelectSubTab called subTab=%s frame=%s hasAdmin=%s", tostring(subTab), tostring(frame and frame:GetName()), tostring(frame and frame.Admin and "yes" or "no")))
+    if not frame or not frame.Admin then
+        print("[Reckoning:Admin] SelectSubTab early return: no frame or no frame.Admin")
+        return
+    end
+    local admin = frame.Admin
+    admin.selectedSubTab = subTab
+    if admin.ScrollFrame then admin.ScrollFrame:SetShown(subTab == "tickets") end
+    if admin.ActionsScrollFrame then admin.ActionsScrollFrame:SetShown(subTab == "actions") end
+    if admin.LogScrollFrame then admin.LogScrollFrame:SetShown(subTab == "log") end
+    if admin.LogHeader then admin.LogHeader:SetShown(subTab == "log") end
+    if admin.LogFilterRow then admin.LogFilterRow:SetShown(subTab == "log") end
+    if admin.LogEmptyState and subTab ~= "log" then admin.LogEmptyState:Hide() end
+    if admin.ResolveButton then admin.ResolveButton:SetShown(subTab == "tickets") end
+    if admin.EmptyState then admin.EmptyState:Hide() end
+    if admin.ActionsEmptyState then admin.ActionsEmptyState:Hide() end
+    if admin.LogEmptyState then admin.LogEmptyState:Hide() end
+    if subTab == "tickets" then
+        ReckoningAdminTickets_Refresh(frame)
+    elseif subTab == "actions" then
+        ReckoningAdminActions_Refresh(frame)
+    elseif subTab == "log" then
+        ReckoningAdminLog_Refresh(frame)
+    end
+end
+
+function ReckoningAdmin_EnsureUI(frame)
+    print("[Reckoning:Admin] EnsureUI called")
+    if not frame then print("[Reckoning:Admin] EnsureUI early return: no frame") return end
+    -- Admin frame and left panel (Categories with Tickets/Actions buttons) come from XML.
+    local admin = frame.Admin
+    if not admin or not admin.Content then
+        print("[Reckoning:Admin] EnsureUI early return: no admin or no admin.Content")
+        return
+    end
+    if admin.ScrollFrame then
+        print("[Reckoning:Admin] EnsureUI skipped: already built")
+        return
+    end
+
+    local content = admin.Content
+    print("[Reckoning:Admin] EnsureUI building scroll frames (tickets, actions, log)...")
+    admin.selectedSubTab = "tickets"
+
+    local info = content:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    info:SetPoint("TOPLEFT", 16, -14)
+    info:SetText("Officer/GM only.")
+    admin.Info = info
+
+    local empty = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    empty:SetPoint("CENTER", 0, 0)
+    empty:SetText("No tickets.")
+    empty:Hide()
+    admin.EmptyState = empty
+
+    local resolve = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    resolve:SetSize(120, 22)
+    resolve:SetPoint("TOPRIGHT", -16, -14)
+    resolve:SetText("Resolve")
+    resolve:Disable()
+    admin.ResolveButton = resolve
+
+    -- Only create HybridScrollFrame for officers/GM; Blizzard's template expects a scrollBar
+    -- child which we must create when building the frame in Lua. Non-admins never get the
+    -- scroll frame, so they never hit HybridScrollFrame_CreateButtons (scrollBar nil).
+    local priv = Private or Reckoning.Private
+    local ticketSync = priv and priv.TicketSyncUtils
+    local isAdmin = ticketSync and ticketSync:IsAdmin() == true
+    print(string.format("[Reckoning:Admin] EnsureUI isAdmin=%s", tostring(isAdmin)))
+
+    if isAdmin then
+        local contentTop = 40
+        local scrollName = "ReckoningAchievementFrameAdminScroll"
+        local scroll = CreateFrame("ScrollFrame", scrollName, content, "HybridScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", 8, -contentTop)
+        scroll:SetPoint("BOTTOMRIGHT", -28, 10)
+        admin.ScrollFrame = scroll
+
+        -- HybridScrollFrame_CreateButtons expects scroll.scrollBar; XML templates add a
+        -- Slider named "$parentScrollBar". Create it when building in Lua.
+        local bar = CreateFrame("Slider", scrollName .. "ScrollBar", scroll, "HybridScrollBarTemplate")
+        bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 1, -14)
+        bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 1, 12)
+        scroll.scrollBar = bar
+
+        HybridScrollFrame_CreateButtons(scroll, "ReckoningGuildEventButtonTemplate", 0, -4)
+
+        for _, btn in ipairs(scroll.buttons or {}) do
+            btn:SetHeight(64)
+            btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+            btn:SetScript("OnClick", function(self, mouseButton)
+                if mouseButton == "RightButton" and self.achievementId and UIDropDownMenu_Initialize and ToggleDropDownMenu then
+                    EnsureBugReportDialog()
+                    local dd = EnsureBugReportDropDown()
+                    dd.achievementId = self.achievementId
+                    ToggleDropDownMenu(1, nil, dd, "cursor", 0, 0)
+                    return
+                end
+                admin.selectedTicketId = self.ticketId
+                if admin.ResolveButton then
+                    admin.ResolveButton:SetEnabled(self.ticketId ~= nil)
+                end
+                ReckoningAdminTickets_Refresh(frame)
+            end)
+        end
+
+        -- Actions panel: scroll list of corrections
+        local actionsScrollName = "ReckoningAchievementFrameAdminActionsScroll"
+        local actionsScroll = CreateFrame("ScrollFrame", actionsScrollName, content, "HybridScrollFrameTemplate")
+        actionsScroll:SetPoint("TOPLEFT", 8, -contentTop)
+        actionsScroll:SetPoint("BOTTOMRIGHT", -28, 10)
+        local actionsBar = CreateFrame("Slider", actionsScrollName .. "ScrollBar", actionsScroll, "HybridScrollBarTemplate")
+        actionsBar:SetPoint("TOPLEFT", actionsScroll, "TOPRIGHT", 1, -14)
+        actionsBar:SetPoint("BOTTOMLEFT", actionsScroll, "BOTTOMRIGHT", 1, 12)
+        actionsScroll.scrollBar = actionsBar
+        HybridScrollFrame_CreateButtons(actionsScroll, "ReckoningGuildEventButtonTemplate", 0, -4)
+        admin.ActionsScrollFrame = actionsScroll
+        actionsScroll:Hide()
+        admin.ExpandedAchievements = admin.ExpandedAchievements or {}
+        for _, btn in ipairs(actionsScroll.buttons or {}) do
+            btn:SetHeight(40)
+            local expandBtn = CreateFrame("Button", nil, btn)
+            expandBtn:SetSize(22, 22)
+            expandBtn:SetPoint("LEFT", btn, "LEFT", 4, 0)
+            local expandFs = expandBtn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+            expandFs:SetPoint("CENTER", 0, 0)
+            expandFs:SetText("▼")
+            expandBtn.text = expandFs
+            expandBtn:SetScript("OnClick", function(self)
+                local aid = self.achievementId
+                if aid == nil then return end
+                admin.ExpandedAchievements[aid] = not admin.ExpandedAchievements[aid]
+                ReckoningAdminActions_Refresh(frame)
+            end)
+            btn.ExpandButton = expandBtn
+            local cancelBtn = CreateFrame("Button", nil, btn, "UIPanelButtonTemplate")
+            cancelBtn:SetSize(50, 20)
+            cancelBtn:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
+            cancelBtn:SetText("Cancel")
+            btn.CancelButton = cancelBtn
+            local manageBtn = CreateFrame("Button", nil, btn, "UIPanelButtonTemplate")
+            manageBtn:SetSize(50, 20)
+            manageBtn:SetPoint("RIGHT", cancelBtn, "LEFT", -4, 0)
+            manageBtn:SetText("Manage")
+            btn.ManageButton = manageBtn
+        end
+
+        local actionsEmpty = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        actionsEmpty:SetPoint("CENTER", 0, -20)
+        actionsEmpty:SetText("No actions yet.")
+        actionsEmpty:Hide()
+        admin.ActionsEmptyState = actionsEmpty
+
+        -- Log panel: roster-style header + filters + scroll
+        local logHeader = CreateFrame("Frame", nil, content)
+        logHeader:SetPoint("TOPLEFT", 8, -contentTop)
+        logHeader:SetPoint("TOPRIGHT", -28, -contentTop)
+        logHeader:SetHeight(24)
+        logHeader:Hide()
+        admin.LogHeader = logHeader
+        local logHeaderBg = logHeader:CreateTexture(nil, "BACKGROUND")
+        logHeaderBg:SetAllPoints()
+        logHeaderBg:SetColorTexture(0, 0, 0, 0.5)
+        local function addLogHeaderButton(parent, text, x, width, column)
+            local btn = CreateFrame("Button", nil, parent)
+            btn:SetPoint("LEFT", x, 0)
+            btn:SetSize(width, 24)
+            local fs = btn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+            fs:SetPoint("LEFT", 4, 0)
+            fs:SetText(text)
+            fs:SetTextColor(1, 0.82, 0)
+            btn:SetScript("OnClick", function()
+                if PlaySound and SOUNDKIT then PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn") end
+                ReckoningAdminLog_SortBy(frame, column)
+            end)
+            btn:SetScript("OnEnter", function() fs:SetTextColor(1, 1, 1) end)
+            btn:SetScript("OnLeave", function() fs:SetTextColor(1, 0.82, 0) end)
+            return btn
+        end
+        addLogHeaderButton(logHeader, "Date", 0, 120, "issuedAt")
+        addLogHeaderButton(logHeader, "Author", 124, 90, "issuedBy")
+        addLogHeaderButton(logHeader, "Type", 218, 130, "type")
+        addLogHeaderButton(logHeader, "Achievement", 352, 200, "achievementName")
+
+        admin.LogSortState = { column = "issuedAt", ascending = false }
+        admin.LogFilters = { searchText = "", typeFilter = nil, authorFilter = nil, datePreset = "all" }
+
+        local logFilterRow = CreateFrame("Frame", nil, content)
+        logFilterRow:SetPoint("TOPLEFT", 8, -contentTop - 28)
+        logFilterRow:SetPoint("TOPRIGHT", -28, -contentTop - 28)
+        logFilterRow:SetHeight(26)
+        logFilterRow:Hide()
+        admin.LogFilterRow = logFilterRow
+        local searchBox = CreateFrame("EditBox", nil, logFilterRow, "InputBoxTemplate")
+        searchBox:SetPoint("LEFT", 0, 0)
+        searchBox:SetSize(140, 20)
+        searchBox:SetAutoFocus(false)
+        searchBox:SetScript("OnTextChanged", function() admin.LogFilters.searchText = searchBox:GetText(); ReckoningAdminLog_Refresh(frame) end)
+        searchBox:SetScript("OnEscapePressed", function() searchBox:ClearFocus() end)
+        admin.LogSearchBox = searchBox
+        local searchLabel = logFilterRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        searchLabel:SetPoint("RIGHT", searchBox, "LEFT", -4, 0)
+        searchLabel:SetText("Search:")
+        local function createLogFilterDropdown(name, width, options, getKey)
+            local dd = CreateFrame("Frame", nil, logFilterRow, "UIDropDownMenuTemplate")
+            dd:SetPoint("LEFT", getKey and 150 or (name == "Type" and 150 or (name == "Author" and 280 or 380)), 0)
+            UIDropDownMenu_SetWidth(dd, width or 100)
+            dd.GetKey = getKey
+            dd.options = options
+            return dd
+        end
+        local typeDD = CreateFrame("Frame", nil, logFilterRow, "UIDropDownMenuTemplate")
+        typeDD:SetPoint("LEFT", 150, 0)
+        UIDropDownMenu_SetWidth(typeDD, 120)
+        admin.LogTypeDropdown = typeDD
+        local authorDD = CreateFrame("Frame", nil, logFilterRow, "UIDropDownMenuTemplate")
+        authorDD:SetPoint("LEFT", 278, 0)
+        UIDropDownMenu_SetWidth(authorDD, 100)
+        admin.LogAuthorDropdown = authorDD
+        local dateDD = CreateFrame("Frame", nil, logFilterRow, "UIDropDownMenuTemplate")
+        dateDD:SetPoint("LEFT", 386, 0)
+        UIDropDownMenu_SetWidth(dateDD, 80)
+        admin.LogDateDropdown = dateDD
+
+        local logScrollName = "ReckoningAchievementFrameAdminLogScroll"
+        local logScroll = CreateFrame("ScrollFrame", logScrollName, content, "HybridScrollFrameTemplate")
+        logScroll:SetPoint("TOPLEFT", 8, -contentTop - 58)
+        logScroll:SetPoint("BOTTOMRIGHT", -28, 10)
+        local logBar = CreateFrame("Slider", logScrollName .. "ScrollBar", logScroll, "HybridScrollBarTemplate")
+        logBar:SetPoint("TOPLEFT", logScroll, "TOPRIGHT", 1, -14)
+        logBar:SetPoint("BOTTOMLEFT", logScroll, "BOTTOMRIGHT", 1, 12)
+        logScroll.scrollBar = logBar
+        HybridScrollFrame_CreateButtons(logScroll, "ReckoningGuildRosterButtonTemplate", 0, 0, nil, nil, 0, -2)
+        admin.LogScrollFrame = logScroll
+        logScroll:Hide()
+        for i, btn in ipairs(logScroll.buttons or {}) do
+            btn:SetHeight(22)
+            btn:RegisterForClicks("LeftButtonUp")
+            if not btn.LogDateCol then
+                btn.LogDateCol = btn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+                btn.LogDateCol:SetPoint("LEFT", 6, 0)
+                btn.LogAuthorCol = btn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+                btn.LogAuthorCol:SetPoint("LEFT", 128, 0)
+                btn.LogTypeCol = btn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+                btn.LogTypeCol:SetPoint("LEFT", 222, 0)
+                btn.LogAchievementCol = btn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+                btn.LogAchievementCol:SetPoint("LEFT", 356, 0)
+                btn.bg = btn:CreateTexture(nil, "BACKGROUND")
+                btn.bg:SetAllPoints()
+                btn.bg:SetColorTexture(0, 0, 0, 0.2)
+            end
+        end
+
+        local logEmpty = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        logEmpty:SetPoint("CENTER", 0, -20)
+        logEmpty:SetText("No log entries.")
+        logEmpty:Hide()
+        admin.LogEmptyState = logEmpty
+        print("[Reckoning:Admin] EnsureUI created ActionsScrollFrame and LogScrollFrame (buttons=" .. tostring(actionsScroll.buttons and #actionsScroll.buttons or 0) .. "," .. tostring(logScroll.buttons and #logScroll.buttons or 0) .. ")")
+    else
+        admin.ScrollFrame = nil
+        admin.ActionsScrollFrame = nil
+        admin.LogScrollFrame = nil
+        print("[Reckoning:Admin] EnsureUI not admin: scroll frames nil")
+    end
+
+    resolve:SetScript("OnClick", function()
+        local privRes = Private or Reckoning.Private
+        local ticketSyncRes = privRes and privRes.TicketSyncUtils
+        if not ticketSyncRes or not ticketSyncRes.ResolveTicket then return end
+        if not admin.selectedTicketId then return end
+        ticketSyncRes:ResolveTicket(admin.selectedTicketId)
+        admin.selectedTicketId = nil
+        resolve:Disable()
+        ReckoningAdminTickets_Refresh(frame)
+    end)
+end
+
+local function Admin_GetSortedTickets()
+    local priv = Private or Reckoning.Private
+    local ticketSync = priv and priv.TicketSyncUtils
+    if not ticketSync or not ticketSync.GetTickets then
+        return {}, false
+    end
+    local isAdmin = ticketSync:IsAdmin() == true
+    local tickets = {}
+    for id, t in pairs(ticketSync:GetTickets() or {}) do
+        if type(t) == "table" then
+            tickets[#tickets + 1] = t
+        end
+    end
+    table.sort(tickets, function(a, b)
+        local at = tonumber(a.createdAt) or 0
+        local bt = tonumber(b.createdAt) or 0
+        if at ~= bt then return at > bt end
+        return tostring(a.id or "") < tostring(b.id or "")
+    end)
+    return tickets, isAdmin
+end
+
+function ReckoningAdminTickets_Refresh(frame)
+    if not frame or not frame.Admin then return end
+    local admin = frame.Admin
+
+    local tickets, isAdmin = Admin_GetSortedTickets()
+    if admin.Info then
+        admin.Info:SetShown(not isAdmin)
+    end
+    if admin.ResolveButton then
+        admin.ResolveButton:SetShown(isAdmin)
+        admin.ResolveButton:SetEnabled(isAdmin and admin.selectedTicketId ~= nil)
+    end
+
+    if not isAdmin then
+        if admin.ScrollFrame then admin.ScrollFrame:Hide() end
+        if admin.ActionsScrollFrame then admin.ActionsScrollFrame:Hide() end
+        if admin.EmptyState then
+            admin.EmptyState:SetText("Admin only.")
+            admin.EmptyState:Show()
+        end
+        if admin.ActionsEmptyState then admin.ActionsEmptyState:Hide() end
+        return
+    end
+
+    if admin.selectedSubTab == "actions" then
+        ReckoningAdminActions_Refresh(frame)
+        return
+    end
+
+    -- Admin: request latest tickets when opening/refreshing the tab.
+    local priv = Private or Reckoning.Private
+    local ticketSync = priv and priv.TicketSyncUtils
+    if ticketSync and ticketSync.RequestTickets then
+        ticketSync:RequestTickets()
+    end
+
+    local openTickets = {}
+    for _, t in ipairs(tickets) do
+        if t.status ~= "resolved" then
+            openTickets[#openTickets + 1] = t
+        end
+    end
+
+    if admin.EmptyState then
+        admin.EmptyState:SetText("No tickets.")
+        admin.EmptyState:SetShown(#openTickets == 0)
+    end
+    if admin.ScrollFrame then
+        admin.ScrollFrame:SetShown(admin.selectedSubTab == "tickets" and #openTickets > 0)
+    end
+
+    local scroll = admin.ScrollFrame
+    if not scroll or not scroll.buttons then return end
+
+    local offset = HybridScrollFrame_GetOffset(scroll)
+    local buttons = scroll.buttons
+    local buttonHeight = 64
+    local totalHeight = #openTickets * (buttonHeight + 4)
+    HybridScrollFrame_Update(scroll, totalHeight, scroll:GetHeight())
+
+    for i = 1, #buttons do
+        local index = offset + i
+        local btn = buttons[i]
+        local t = openTickets[index]
+
+        if not t then
+            btn:Hide()
+        else
+            btn.ticketId = t.id
+            btn.achievementId = t.achievementId
+
+            local achievement = Data and Data._achievements and Data._achievements[t.achievementId]
+            local name = achievement and achievement.name or ("Achievement #" .. tostring(t.achievementId or "?"))
+            local icon = achievement and achievement.icon or "Interface\\Icons\\INV_Misc_QuestionMark"
+
+            if btn.icon and btn.icon.texture then
+                btn.icon.texture:SetTexture(icon)
+            end
+            if btn.label then
+                btn.label:SetText(string.format("[%s] %s", tostring(t.id or "?"), name))
+            end
+            if btn.description then
+                local reporter = tostring(t.reporter or "Player")
+                local reason = tostring(t.reason or "")
+                btn.description:SetText(string.format("|cffaaaaaa%s:|r %s", reporter, reason))
+            end
+
+            -- Reuse shield points text to show ACK status.
+            if btn.shield and btn.shield.points then
+                if t.ackedAt then
+                    btn.shield.points:SetText("ACK")
+                else
+                    btn.shield.points:SetText("")
+                end
+            end
+
+            btn:SetAlpha((admin.selectedTicketId == t.id) and 1 or 0.95)
+            btn:Show()
+        end
+    end
+end
+
+function ReckoningAdminActions_Refresh(frame)
+    if not frame or not frame.Admin then return end
+    local admin = frame.Admin
+    local correctionSync = (Private or Reckoning.Private) and (Private or Reckoning.Private).CorrectionSyncUtils
+    if not correctionSync or not correctionSync.GetCorrections then return end
+    if correctionSync.RequestCorrections then
+        correctionSync:RequestCorrections()
+    end
+    if not admin.ActionsScrollFrame or not admin.ActionsScrollFrame.buttons then return end
+
+    local activeList = {}
+    for _, c in pairs(correctionSync:GetCorrections()) do
+        if type(c) == "table" and c.id and c.type ~= "cancel" and not (correctionSync.IsCorrectionVoided and correctionSync:IsCorrectionVoided(c)) then
+            activeList[#activeList + 1] = c
+        end
+    end
+
+    local grouped = {}
+    for _, c in ipairs(activeList) do
+        local aid = c.achievementId
+        if not grouped[aid] then
+            grouped[aid] = { achievementId = aid, corrections = {} }
+        end
+        grouped[aid].corrections[#grouped[aid].corrections + 1] = c
+    end
+    local groups = {}
+    for _, grp in pairs(grouped) do
+        table.sort(grp.corrections, function(a, b) return (tonumber(a.issuedAt) or 0) > (tonumber(b.issuedAt) or 0) end)
+        groups[#groups + 1] = grp
+    end
+    table.sort(groups, function(a, b)
+        local at = #a.corrections > 0 and (tonumber(a.corrections[1].issuedAt) or 0) or 0
+        local bt = #b.corrections > 0 and (tonumber(b.corrections[1].issuedAt) or 0) or 0
+        return at > bt
+    end)
+
+    local displayList = {}
+    for _, grp in ipairs(groups) do
+        local aid = grp.achievementId
+        local achievement = Data and Data._achievements and Data._achievements[aid]
+        grp.name = achievement and achievement.name or ("Achievement #" .. tostring(aid or "?"))
+        grp.icon = achievement and achievement.icon or "Interface\\Icons\\INV_Misc_QuestionMark"
+        displayList[#displayList + 1] = { type = "group", achievementId = aid, name = grp.name, icon = grp.icon, corrections = grp.corrections }
+        if admin.ExpandedAchievements[aid] ~= false then
+            for _, c in ipairs(grp.corrections) do
+                displayList[#displayList + 1] = { type = "action", correction = c }
+            end
+        end
+    end
+
+    if admin.ActionsEmptyState then
+        admin.ActionsEmptyState:SetShown(#displayList == 0)
+    end
+    local scroll = admin.ActionsScrollFrame
+    scroll:SetShown(#displayList > 0)
+
+    local buttonHeight = 40
+    local totalHeight = #displayList * (buttonHeight + 4)
+    local offset = HybridScrollFrame_GetOffset(scroll)
+    local buttons = scroll.buttons
+    HybridScrollFrame_Update(scroll, totalHeight, scroll:GetHeight())
+
+    for i = 1, #buttons do
+        local index = offset + i
+        local btn = buttons[i]
+        local item = displayList[index]
+        if not item then
+            if btn.ExpandButton then btn.ExpandButton:Hide() end
+            if btn.CancelButton then btn.CancelButton:Hide() end
+            if btn.ManageButton then btn.ManageButton:Hide() end
+            btn:Hide()
+        else
+            if item.type == "group" then
+                btn.ExpandButton.achievementId = item.achievementId
+                btn.ExpandButton:Show()
+                btn.ExpandButton.text:SetText((admin.ExpandedAchievements[item.achievementId] ~= false) and "▼" or "▶")
+                if btn.icon and btn.icon.texture then
+                    btn.icon.texture:SetTexture(item.icon)
+                    btn.icon.texture:Show()
+                end
+                if btn.label then
+                    btn.label:SetText(item.name .. " (" .. #item.corrections .. ")")
+                end
+                if btn.description then
+                    btn.description:SetText("")
+                    btn.description:Show()
+                end
+                if btn.CancelButton then btn.CancelButton:Hide() end
+                if btn.ManageButton then
+                    btn.ManageButton:Show()
+                    btn.ManageButton.achievementId = item.achievementId
+                    btn.ManageButton:SetScript("OnClick", function(self)
+                        local aid = self.achievementId
+                        if aid and ReckoningAchievementManage_Show then ReckoningAchievementManage_Show(aid) end
+                    end)
+                end
+            else
+                local c = item.correction
+                if btn.ExpandButton then btn.ExpandButton:Hide() end
+                local achievement = Data and Data._achievements and Data._achievements[c.achievementId]
+                local name = achievement and achievement.name or ("Achievement #" .. tostring(c.achievementId or "?"))
+                local icon = achievement and achievement.icon or "Interface\\Icons\\INV_Misc_QuestionMark"
+                local typeLabel = (c.type == "full_invalidate" and "Invalidate (all)") or (c.type == "invalidate_from_date" and "Invalid from date") or (c.type == "revalidate" and "Revalidate") or (c.type == "reset" and "Reset") or tostring(c.type or "?")
+                local dateStr = c.issuedAt and date("%Y-%m-%d %H:%M", c.issuedAt) or ""
+                local params = ""
+                if c.type == "invalidate_from_date" and c.fromDate then
+                    params = " from " .. date("%Y-%m-%d %H:%M", c.fromDate)
+                elseif (c.type == "revalidate" or c.type == "reset") and c.addonVersion and c.addonVersion ~= "" then
+                    params = " min v" .. tostring(c.addonVersion)
+                end
+                if params ~= "" then typeLabel = typeLabel .. params end
+                if btn.icon and btn.icon.texture then
+                    btn.icon.texture:SetTexture(icon)
+                    btn.icon.texture:Show()
+                end
+                if btn.label then
+                    btn.label:SetText("    " .. typeLabel)
+                end
+                if btn.description then
+                    btn.description:SetText(string.format("|cffaaaaaa%s|r %s", tostring(c.issuedBy or "?"), dateStr))
+                    btn.description:Show()
+                end
+                if btn.CancelButton then
+                    btn.CancelButton:Show()
+                    btn.CancelButton.correctionId = c.id
+                    btn.CancelButton:SetScript("OnClick", function(self)
+                        local id = self.correctionId
+                        if not id then return end
+                        local priv = Private or Reckoning.Private
+                        local cs = priv and priv.CorrectionSyncUtils
+                        if cs and cs.CancelCorrection then
+                            cs:CancelCorrection(id)
+                            ReckoningAdminActions_Refresh(frame)
+                            if ReckoningAdminLog_Refresh then ReckoningAdminLog_Refresh(frame) end
+                        end
+                    end)
+                end
+                if btn.ManageButton then btn.ManageButton:Hide() end
+            end
+            btn:SetHeight(buttonHeight)
+            btn:Show()
+        end
+    end
+end
+
+function ReckoningAdminLog_SortBy(frame, column)
+    if not frame or not frame.Admin then return end
+    local admin = frame.Admin
+    local state = admin.LogSortState
+    if not state then return end
+    state.ascending = (state.column == column) and not state.ascending or (column ~= state.column)
+    state.column = column
+    ReckoningAdminLog_Refresh(frame)
+end
+
+local function AdminLog_TypeLabel(ctype)
+    if ctype == "full_invalidate" then return "Invalidate (all)" end
+    if ctype == "invalidate_from_date" then return "Invalid from date" end
+    if ctype == "revalidate" then return "Revalidate" end
+    if ctype == "cancel" then return "Cancel" end
+    if ctype == "reset" then return "Reset" end
+    return tostring(ctype or "?")
+end
+
+function ReckoningAdminLog_Refresh(frame)
+    if not frame or not frame.Admin then return end
+    local admin = frame.Admin
+    local correctionSync = (Private or Reckoning.Private) and (Private or Reckoning.Private).CorrectionSyncUtils
+    if not correctionSync or not correctionSync.GetCorrections then return end
+    if correctionSync.RequestCorrections then
+        correctionSync:RequestCorrections()
+    end
+    if not admin.LogScrollFrame or not admin.LogScrollFrame.buttons then return end
+
+    local list = {}
+    local authors = {}
+    for _, c in pairs(correctionSync:GetCorrections()) do
+        if type(c) == "table" and c.id then
+            list[#list + 1] = c
+            local who = tostring(c.issuedBy or "?")
+            if who ~= "" then authors[who] = true end
+        end
+    end
+
+    local filters = admin.LogFilters or {}
+    local searchText = (filters.searchText or ""):lower():match("^%s*(.-)%s*$") or ""
+    if searchText ~= "" then
+        local filtered = {}
+        for _, c in ipairs(list) do
+            local achievement = Data and Data._achievements and Data._achievements[c.achievementId]
+            local name = (achievement and achievement.name or ("Achievement #" .. tostring(c.achievementId or "?"))):lower()
+            local idStr = tostring(c.achievementId or ""):lower()
+            if name:find(searchText, 1, true) or idStr:find(searchText, 1, true) then
+                filtered[#filtered + 1] = c
+            end
+        end
+        list = filtered
+    end
+    if filters.typeFilter and filters.typeFilter ~= "" then
+        local filtered = {}
+        for _, c in ipairs(list) do
+            if c.type == filters.typeFilter then filtered[#filtered + 1] = c end
+        end
+        list = filtered
+    end
+    if filters.authorFilter and filters.authorFilter ~= "" then
+        local filtered = {}
+        for _, c in ipairs(list) do
+            if tostring(c.issuedBy or "") == filters.authorFilter then filtered[#filtered + 1] = c end
+        end
+        list = filtered
+    end
+    local now = time()
+    local datePreset = filters.datePreset or "all"
+    if datePreset == "24h" or datePreset == "7d" or datePreset == "30d" then
+        local sec = (datePreset == "24h" and 86400) or (datePreset == "7d" and 604800) or 2592000
+        local cutoff = now - sec
+        local filtered = {}
+        for _, c in ipairs(list) do
+            if (tonumber(c.issuedAt) or 0) >= cutoff then filtered[#filtered + 1] = c end
+        end
+        list = filtered
+    end
+
+    local sortCol = (admin.LogSortState and admin.LogSortState.column) or "issuedAt"
+    local ascending = admin.LogSortState and admin.LogSortState.ascending
+    table.sort(list, function(a, b)
+        local av, bv
+        if sortCol == "issuedAt" then
+            av = tonumber(a.issuedAt) or 0
+            bv = tonumber(b.issuedAt) or 0
+        elseif sortCol == "issuedBy" then
+            av = tostring(a.issuedBy or "")
+            bv = tostring(b.issuedBy or "")
+        elseif sortCol == "type" then
+            av = tostring(a.type or "")
+            bv = tostring(b.type or "")
+        else
+            local aa = Data and Data._achievements and Data._achievements[a.achievementId]
+            local ab = Data and Data._achievements and Data._achievements[b.achievementId]
+            av = (aa and aa.name or ("Achievement #" .. tostring(a.achievementId or "?")))
+            bv = (ab and ab.name or ("Achievement #" .. tostring(b.achievementId or "?")))
+        end
+        if av == bv then
+            return (tonumber(a.issuedAt) or 0) > (tonumber(b.issuedAt) or 0)
+        end
+        if sortCol == "issuedAt" or sortCol == "issuedBy" or sortCol == "type" then
+            if ascending then return av < bv else return av > bv end
+        end
+        if ascending then return av < bv else return av > bv end
+    end)
+
+    -- Update filter dropdowns (Type, Author, Date)
+    if admin.LogTypeDropdown and UIDropDownMenu_Initialize then
+        UIDropDownMenu_Initialize(admin.LogTypeDropdown, function(self, level)
+            if level ~= 1 then return end
+            local opts = {
+                { value = nil, text = "All types" },
+                { value = "full_invalidate", text = "Invalidate (all)" },
+                { value = "invalidate_from_date", text = "Invalid from date" },
+                { value = "revalidate", text = "Revalidate" },
+                { value = "cancel", text = "Cancel" },
+                { value = "reset", text = "Reset" },
+            }
+            for _, o in ipairs(opts) do
+                local info = UIDropDownMenu_CreateInfo()
+                info.text = o.text
+                info.func = function(_, val)
+                    admin.LogFilters.typeFilter = val
+                    UIDropDownMenu_SetText(admin.LogTypeDropdown, o.text)
+                    ReckoningAdminLog_Refresh(frame)
+                end
+                info.arg1 = o.value
+                UIDropDownMenu_AddButton(info, level)
+            end
+        end)
+        UIDropDownMenu_SetText(admin.LogTypeDropdown, filters.typeFilter and AdminLog_TypeLabel(filters.typeFilter) or "All types")
+    end
+    if admin.LogAuthorDropdown and UIDropDownMenu_Initialize then
+        local authorList = {}
+        for who in pairs(authors) do authorList[#authorList + 1] = who end
+        table.sort(authorList)
+        UIDropDownMenu_Initialize(admin.LogAuthorDropdown, function(self, level)
+            if level ~= 1 then return end
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = "All"
+            info.func = function()
+                admin.LogFilters.authorFilter = nil
+                UIDropDownMenu_SetText(admin.LogAuthorDropdown, "All")
+                ReckoningAdminLog_Refresh(frame)
+            end
+            UIDropDownMenu_AddButton(info, level)
+            for _, who in ipairs(authorList) do
+                local info = UIDropDownMenu_CreateInfo()
+                info.text = who
+                info.func = function(_, val)
+                    admin.LogFilters.authorFilter = val
+                    UIDropDownMenu_SetText(admin.LogAuthorDropdown, who)
+                    ReckoningAdminLog_Refresh(frame)
+                end
+                info.arg1 = who
+                UIDropDownMenu_AddButton(info, level)
+            end
+        end)
+        UIDropDownMenu_SetText(admin.LogAuthorDropdown, (filters.authorFilter and filters.authorFilter ~= "") and filters.authorFilter or "All")
+    end
+    if admin.LogDateDropdown and UIDropDownMenu_Initialize then
+        UIDropDownMenu_Initialize(admin.LogDateDropdown, function(self, level)
+            if level ~= 1 then return end
+            local presets = { { "all", "All" }, { "24h", "24h" }, { "7d", "7 days" }, { "30d", "30 days" } }
+            for _, p in ipairs(presets) do
+                local info = UIDropDownMenu_CreateInfo()
+                info.text = p[2]
+                info.func = function(_, val)
+                    admin.LogFilters.datePreset = val
+                    UIDropDownMenu_SetText(admin.LogDateDropdown, p[2])
+                    ReckoningAdminLog_Refresh(frame)
+                end
+                info.arg1 = p[1]
+                UIDropDownMenu_AddButton(info, level)
+            end
+        end)
+        local dateLabel = (datePreset == "24h" and "24h") or (datePreset == "7d" and "7 days") or (datePreset == "30d" and "30 days") or "All"
+        UIDropDownMenu_SetText(admin.LogDateDropdown, dateLabel)
+    end
+
+    if admin.LogEmptyState then
+        admin.LogEmptyState:SetShown(#list == 0)
+    end
+    local scroll = admin.LogScrollFrame
+    if scroll then
+        scroll:SetShown(#list > 0)
+        if scroll.scrollBar and scroll.scrollBar.SetValue then scroll.scrollBar:SetValue(0) end
+    end
+
+    local offset = HybridScrollFrame_GetOffset(scroll)
+    local buttons = scroll.buttons
+    local buttonHeight = 22
+    local totalHeight = #list * (buttonHeight + 2)
+    HybridScrollFrame_Update(scroll, totalHeight, scroll:GetHeight())
+
+    for i = 1, #buttons do
+        local index = offset + i
+        local btn = buttons[i]
+        local c = list[index]
+        if not c then
+            btn:Hide()
+        else
+            local achievement = Data and Data._achievements and Data._achievements[c.achievementId]
+            local name = achievement and achievement.name or ("Achievement #" .. tostring(c.achievementId or "?"))
+            btn.LogDateCol:SetText(c.issuedAt and date("%Y-%m-%d %H:%M", c.issuedAt) or "")
+            btn.LogAuthorCol:SetText(tostring(c.issuedBy or "?"))
+            btn.LogTypeCol:SetText(AdminLog_TypeLabel(c.type))
+            btn.LogAchievementCol:SetText(name)
+            if index % 2 == 0 then btn.bg:Show() else btn.bg:Hide() end
+            btn:SetHeight(buttonHeight)
+            btn:Show()
+        end
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -596,11 +1388,17 @@ function ReckoningAchievementFrame_OnLoad(self)
         ReckoningAchievementMicroButton_UpdateIcon()
     end
 
+    -- Hide Admin tab for non-officers/GM before selecting default tab
+    ReckoningAchievementFrame_UpdateAdminTabVisibility()
     -- Select Achievements tab by default
     ReckoningAchievementFrame_SelectTab(1)
 end
 
 function ReckoningAchievementFrame_OnShow(self)
+        -- Keep the addon layout panel anchored to the center of the screen (not to a side)
+        self:ClearAllPoints()
+        self:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    
     -- Refresh category list (config.lua has registered achievements by now)
     self.categoryList = Data:GetCategories()
 
@@ -619,7 +1417,8 @@ function ReckoningAchievementFrame_OnShow(self)
     ReckoningAchievementFrame_UpdateAchievements(self)
     ReckoningAchievementFrame_UpdateSummary(self)
 
-    -- Update tab visuals now that textures are fully initialized
+    -- Update Admin tab visibility (officer/GM only) and tab visuals
+    ReckoningAchievementFrame_UpdateAdminTabVisibility()
     ReckoningAchievementFrame_SelectTab(1)
 
     -- Update the micro button state
@@ -670,6 +1469,30 @@ Reckoning_Achievements.RefreshFrame = ReckoningAchievementFrame_Refresh
 -- Tab System
 -------------------------------------------------------------------------------
 
+--- Update Admin tab (Tab3) visibility: show only for guild officers/GM, hide otherwise.
+--- Call from OnLoad and OnShow so rank changes are reflected.
+function ReckoningAchievementFrame_UpdateAdminTabVisibility()
+    local frame = ReckoningAchievementFrame
+    if not frame then return end
+
+    local tab3 = _G["ReckoningAchievementFrameTab3"]
+    if not tab3 then return end
+
+    local priv = Private or Reckoning.Private
+    local ticketSync = priv and priv.TicketSyncUtils
+    local isAdmin = ticketSync and ticketSync:IsAdmin() == true
+
+    if isAdmin then
+        tab3:Show()
+    else
+        tab3:Hide()
+        -- If we're currently showing the Admin content, switch to Achievements tab
+        if frame.Admin and frame.Admin:IsShown() then
+            ReckoningAchievementFrame_SelectTab(1)
+        end
+    end
+end
+
 function ReckoningAchievementFrame_SelectTab(tabNum)
     local frame = ReckoningAchievementFrame
 
@@ -677,100 +1500,61 @@ function ReckoningAchievementFrame_SelectTab(tabNum)
     -- Access textures using _G since they're named regions, not parentKey properties
     local tab1Name = "ReckoningAchievementFrameTab1"
     local tab2Name = "ReckoningAchievementFrameTab2"
+    local tab3Name = "ReckoningAchievementFrameTab3"
 
     local tab1 = _G[tab1Name]
     local tab2 = _G[tab2Name]
+    local tab3 = _G[tab3Name]
 
-    -- Check if textures exist (they might not be created yet during OnLoad)
-    local tab1Left = _G[tab1Name .. "Left"]
-    if not tab1Left then
-        -- Textures not created yet, skip visual update
-        -- This can happen during OnLoad before template is fully initialized
-    else
-        if tabNum == 1 then
-            -- Tab 1 selected (show disabled/raised textures)
-            _G[tab1Name .. "Left"]:Hide()
-            _G[tab1Name .. "Middle"]:Hide()
-            _G[tab1Name .. "Right"]:Hide()
-            _G[tab1Name .. "LeftDisabled"]:Show()
-            _G[tab1Name .. "MiddleDisabled"]:Show()
-            _G[tab1Name .. "RightDisabled"]:Show()
-
-            -- Set tab 1 as selected, white text
-            if tab1 then
-                tab1.isSelected = true
-                if tab1.text then
-                    tab1.text:SetTextColor(1, 1, 1) -- White
-                end
-                -- Hide highlights on selected tab
-                if tab1.leftHighlight then
-                    tab1.leftHighlight:Hide()
-                    tab1.middleHighlight:Hide()
-                    tab1.rightHighlight:Hide()
-                end
-            end
-
-            -- Tab 2 unselected (show normal/flat textures)
-            _G[tab2Name .. "Left"]:Show()
-            _G[tab2Name .. "Middle"]:Show()
-            _G[tab2Name .. "Right"]:Show()
-            _G[tab2Name .. "LeftDisabled"]:Hide()
-            _G[tab2Name .. "MiddleDisabled"]:Hide()
-            _G[tab2Name .. "RightDisabled"]:Hide()
-
-            -- Set tab 2 as unselected, yellow text
-            if tab2 then
-                tab2.isSelected = false
-                if tab2.text then
-                    tab2.text:SetTextColor(1, 0.82, 0) -- Yellow (GameFontNormal)
-                end
-            end
+    local function SetTabSelected(tabName, tabObj, selected)
+        if not _G[tabName .. "Left"] then
+            return
+        end
+        if selected then
+            _G[tabName .. "Left"]:Hide()
+            _G[tabName .. "Middle"]:Hide()
+            _G[tabName .. "Right"]:Hide()
+            _G[tabName .. "LeftDisabled"]:Show()
+            _G[tabName .. "MiddleDisabled"]:Show()
+            _G[tabName .. "RightDisabled"]:Show()
         else
-            -- Tab 2 selected (show disabled/raised textures)
-            _G[tab1Name .. "Left"]:Show()
-            _G[tab1Name .. "Middle"]:Show()
-            _G[tab1Name .. "Right"]:Show()
-            _G[tab1Name .. "LeftDisabled"]:Hide()
-            _G[tab1Name .. "MiddleDisabled"]:Hide()
-            _G[tab1Name .. "RightDisabled"]:Hide()
+            _G[tabName .. "Left"]:Show()
+            _G[tabName .. "Middle"]:Show()
+            _G[tabName .. "Right"]:Show()
+            _G[tabName .. "LeftDisabled"]:Hide()
+            _G[tabName .. "MiddleDisabled"]:Hide()
+            _G[tabName .. "RightDisabled"]:Hide()
+        end
 
-            -- Set tab 1 as unselected, yellow text
-            if tab1 then
-                tab1.isSelected = false
-                if tab1.text then
-                    tab1.text:SetTextColor(1, 0.82, 0) -- Yellow
+        if tabObj then
+            tabObj.isSelected = selected
+            if tabObj.text then
+                if selected then
+                    tabObj.text:SetTextColor(1, 1, 1)
+                else
+                    tabObj.text:SetTextColor(1, 0.82, 0)
                 end
             end
-
-            -- Tab 2 selected
-            _G[tab2Name .. "Left"]:Hide()
-            _G[tab2Name .. "Middle"]:Hide()
-            _G[tab2Name .. "Right"]:Hide()
-            _G[tab2Name .. "LeftDisabled"]:Show()
-            _G[tab2Name .. "MiddleDisabled"]:Show()
-            _G[tab2Name .. "RightDisabled"]:Show()
-
-            -- Set tab 2 as selected, white text
-            if tab2 then
-                tab2.isSelected = true
-                if tab2.text then
-                    tab2.text:SetTextColor(1, 1, 1) -- White
-                end
-                -- Hide highlights on selected tab
-                if tab2.leftHighlight then
-                    tab2.leftHighlight:Hide()
-                    tab2.middleHighlight:Hide()
-                    tab2.rightHighlight:Hide()
-                end
+            if selected and tabObj.leftHighlight then
+                tabObj.leftHighlight:Hide()
+                tabObj.middleHighlight:Hide()
+                tabObj.rightHighlight:Hide()
             end
         end
     end
+
+    SetTabSelected(tab1Name, tab1, tabNum == 1)
+    SetTabSelected(tab2Name, tab2, tabNum == 2)
+    SetTabSelected(tab3Name, tab3, tabNum == 3)
     frame.Achievements:Hide()
     frame.Summary:Hide()
     frame.SearchBox:Hide()
     frame.SearchResults:Hide()
     frame.Guild:Hide()
     frame.Categories:Hide()
+    if frame.Admin then
+        frame.Admin:Hide()
+    end
 
     -- Hide/Show DDLInsets based on tab
     if frame.Header then
@@ -809,6 +1593,19 @@ function ReckoningAchievementFrame_SelectTab(tabNum)
         -- Guild tab - Select default sub-tab (Events)
         frame.Guild:Show()
         ReckoningGuildFrame_SelectSubTab(frame, "events")
+    elseif tabNum == 3 then
+        -- Admin tab (left: Tickets/Actions like Guild; right: content)
+        print("[Reckoning:Admin] SelectTab(3) Admin tab selected, calling EnsureUI...")
+        if ReckoningAdmin_EnsureUI then
+            ReckoningAdmin_EnsureUI(frame)
+        end
+        if frame.Admin then
+            frame.Admin:Show()
+            print("[Reckoning:Admin] SelectTab(3) Admin:Show done, defaulting to tickets sub-tab")
+            ReckoningAdmin_SelectSubTab(frame, "tickets")
+        else
+            print("[Reckoning:Admin] SelectTab(3) frame.Admin is nil")
+        end
     end
 end
 
@@ -898,7 +1695,7 @@ local function RefreshGuildEventsCache()
 end
 
 local function ReckoningGuildEventButton_OnLoad(button)
-    button:RegisterForClicks("LeftButtonUp")
+    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
     -- Add tooltip support
     button:SetScript("OnEnter", function(self)
@@ -1081,17 +1878,24 @@ local function ReckoningGuildEventsScrollFrame_OnLoad(scrollFrame)
 
         ReckoningGuildEventButton_OnLoad(button)
 
-        -- Set click handler to jump to achievement
-        button:SetScript("OnClick", function(self)
-            if self.achievementId then
-                -- Switch to Achievements tab first
-                ReckoningAchievementFrame_SelectTab(1)
+        -- Set click handler: right-click = Report Bug for this achievement, left-click = jump to achievement
+        button:SetScript("OnClick", function(self, mouseButton)
+            if not self.achievementId then return end
 
-                -- Use the existing function that handles category switching and scrolling
-                ReckoningAchievementFrame_SelectAchievement(self.achievementId)
-
-                PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+            if mouseButton == "RightButton" then
+                if UIDropDownMenu_Initialize and ToggleDropDownMenu then
+                    EnsureBugReportDialog()
+                    local dd = EnsureBugReportDropDown()
+                    dd.achievementId = self.achievementId
+                    ToggleDropDownMenu(1, nil, dd, "cursor", 0, 0)
+                end
+                return
             end
+
+            -- Left-click: switch to Achievements tab and select this achievement
+            ReckoningAchievementFrame_SelectTab(1)
+            ReckoningAchievementFrame_SelectAchievement(self.achievementId)
+            PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
         end)
     end
 
@@ -1499,7 +2303,7 @@ end
 -------------------------------------------------------------------------------
 
 function ReckoningAchievementButton_OnLoad(button)
-    button:RegisterForClicks("LeftButtonUp")
+    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     button.collapsed = true
     -- Set backdrop color to transparent to avoid grey overlay
     if button.SetBackdropColor then
@@ -1507,9 +2311,629 @@ function ReckoningAchievementButton_OnLoad(button)
     end
 end
 
-function ReckoningAchievementButton_OnClick(button)
+local BUG_REPORT_DROPDOWN
+local BUG_REPORT_DIALOG
+
+EnsureBugReportDropDown = function()
+    if BUG_REPORT_DROPDOWN then
+        return BUG_REPORT_DROPDOWN
+    end
+
+    BUG_REPORT_DROPDOWN = CreateFrame("Frame", "ReckoningBugReportDropDown", UIParent, "UIDropDownMenuTemplate")
+
+    UIDropDownMenu_Initialize(BUG_REPORT_DROPDOWN, function(self, level)
+        if level ~= 1 then return end
+        local info = UIDropDownMenu_CreateInfo()
+        info.text = "Report Bug"
+        info.notCheckable = true
+        info.func = function()
+            local d = BUG_REPORT_DIALOG
+            if d and d.ShowForAchievement then
+                d:ShowForAchievement(self.achievementId)
+            end
+            CloseDropDownMenus()
+        end
+        UIDropDownMenu_AddButton(info, level)
+
+        local priv = Private or Reckoning.Private
+        local correctionSync = priv and priv.CorrectionSyncUtils
+        if correctionSync and correctionSync:IsAdmin() then
+            info = UIDropDownMenu_CreateInfo()
+            info.text = "Manage achievement"
+            info.notCheckable = true
+            info.func = function()
+                if ReckoningAchievementManage_Show then
+                    ReckoningAchievementManage_Show(self.achievementId)
+                end
+                CloseDropDownMenus()
+            end
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end, "MENU")
+
+    return BUG_REPORT_DROPDOWN
+end
+
+EnsureBugReportDialog = function()
+    if BUG_REPORT_DIALOG then
+        return BUG_REPORT_DIALOG
+    end
+
+    local f = CreateFrame("Frame", "ReckoningBugReportDialog", UIParent, "BackdropTemplate")
+    f:SetSize(420, 170)
+    f:SetPoint("CENTER")
+    f:SetFrameStrata("DIALOG")
+    f:SetToplevel(true)
+    f:EnableMouse(true)
+    f:SetMovable(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+
+    f:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true,
+        tileSize = 32,
+        edgeSize = 32,
+        insets = { left = 8, right = 8, top = 8, bottom = 8 }
+    })
+
+    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOP", 0, -14)
+    title:SetText("Report Achievement Bug")
+
+    local subtitle = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    subtitle:SetPoint("TOP", title, "BOTTOM", 0, -6)
+    subtitle:SetText("Describe the issue (max 140 characters).")
+
+    local edit = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+    edit:SetAutoFocus(false)
+    edit:SetSize(360, 24)
+    edit:SetPoint("TOP", subtitle, "BOTTOM", 0, -14)
+    edit:SetMaxLetters(140)
+    edit:SetScript("OnEscapePressed", function() f:Hide() end)
+    edit:SetScript("OnEnterPressed", function() f.Submit:Click() end)
+    f.EditBox = edit
+
+    local counter = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    counter:SetPoint("TOPRIGHT", edit, "BOTTOMRIGHT", 0, -6)
+    counter:SetText("0/140")
+    f.Counter = counter
+
+    edit:SetScript("OnTextChanged", function(self)
+        local text = self:GetText() or ""
+        if f.Counter then
+            f.Counter:SetText(string.format("%d/140", #text))
+        end
+    end)
+
+    local submit = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    submit:SetSize(120, 24)
+    submit:SetPoint("BOTTOMRIGHT", -18, 16)
+    submit:SetText("Submit")
+    f.Submit = submit
+
+    local cancel = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    cancel:SetSize(120, 24)
+    cancel:SetPoint("RIGHT", submit, "LEFT", -10, 0)
+    cancel:SetText("Cancel")
+    cancel:SetScript("OnClick", function() f:Hide() end)
+
+    submit:SetScript("OnClick", function()
+        local priv = Private or Reckoning.Private
+        local ticketSync = priv and priv.TicketSyncUtils
+        local addon = priv and priv.Addon
+
+        if not ticketSync or not ticketSync.CreateTicket or not ticketSync.BroadcastTicketCreate then
+            if addon and addon.Print then
+                addon:Print("Ticket system not available.")
+            end
+            f:Hide()
+            return
+        end
+
+        if type(IsInGuild) == "function" and not IsInGuild() then
+            if addon and addon.Print then
+                addon:Print("You must be in a guild to report tickets.")
+            end
+            f:Hide()
+            return
+        end
+
+        local reason = (f.EditBox and f.EditBox:GetText()) or ""
+        if reason == "" then
+            if addon and addon.Print then
+                addon:Print("Please enter a short reason before submitting.")
+            end
+            return
+        end
+
+        local ticket = ticketSync:CreateTicket(f.achievementId, reason)
+        if ticket then
+            ticketSync:BroadcastTicketCreate(ticket)
+            if addon and addon.Print then
+                addon:Print(string.format("Ticket submitted (%s).", tostring(ticket.id)))
+            end
+            -- Refresh Admin tab so officers see their own ticket when they open it
+            local frame = ReckoningAchievementFrame
+            if frame and ReckoningAdminTickets_Refresh then
+                ReckoningAdminTickets_Refresh(frame)
+            end
+        end
+
+        f:Hide()
+    end)
+
+    function f:ShowForAchievement(achievementId)
+        self.achievementId = achievementId
+        if self.EditBox then
+            self.EditBox:SetText("")
+            self.EditBox:SetFocus()
+        end
+        if self.Counter then
+            self.Counter:SetText("0/140")
+        end
+        self:Show()
+    end
+
+    f:Hide()
+    BUG_REPORT_DIALOG = f
+    return BUG_REPORT_DIALOG
+end
+
+-------------------------------------------------------------------------------
+-- Manage Achievement dialog (officer/GM: invalidate / revalidate)
+-------------------------------------------------------------------------------
+local MANAGE_ACHIEVEMENT_DIALOG
+
+-- Parse "From date" input: epoch number, or YYYY-MM-DD, or YYYY-MM-DD HH:MM. Returns Unix timestamp or nil (use time()).
+function ReckoningAchievementManage_ParseFromDate(text)
+    if not text or type(text) ~= "string" then return nil end
+    text = text:match("^%s*(.-)%s*$") or text
+    if text == "" then return nil end
+    local num = tonumber(text)
+    if num and num > 0 then return num end
+    local y, m, d = text:match("^(%d%d%d%d)%-(%d%d)%-(%d%d)")
+    if y and m and d then
+        local h, min = text:match(" (%d%d):(%d%d)$")
+        h, min = tonumber(h) or 0, tonumber(min) or 0
+        local t = { year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = h, min = min, sec = 0 }
+        local ok, ts = pcall(function() return time(t) end)
+        if ok and ts then return ts end
+    end
+    return nil
+end
+
+-- Pending data for the confirm popup (Blizzard's StaticPopup may not pass data to OnAccept on all clients)
+local RECKONING_MANAGE_PENDING_DATA = nil
+
+-- Confirmation popup for Manage actions (uses StaticPopup when available)
+function ReckoningAchievementManage_ShowConfirm(achievementId, actionType, opts, confirmText)
+    achievementId = tonumber(achievementId)
+    if not achievementId then return end
+    confirmText = confirmText or "This action will be broadcast to the guild. Confirm?"
+    print(string.format("[Reckoning:Manage] ShowConfirm called achievementId=%s actionType=%s", tostring(achievementId), tostring(actionType)))
+
+    local function doActionFromData(data)
+        if not data or not data.achievementId then
+            print("[Reckoning:Manage] OnAccept: no data or achievementId")
+            return
+        end
+        print(string.format("[Reckoning:Manage] OnAccept calling DoAction achievementId=%s", tostring(data.achievementId)))
+        if ReckoningAchievementManage_DoAction then
+            ReckoningAchievementManage_DoAction(data.achievementId, data.actionType, data.opts or {})
+        else
+            print("[Reckoning:Manage] OnAccept ReckoningAchievementManage_DoAction is nil")
+        end
+    end
+
+    if StaticPopupDialogs and StaticPopup_Show then
+        if not StaticPopupDialogs["RECKONING_MANAGE_CONFIRM"] then
+            StaticPopupDialogs["RECKONING_MANAGE_CONFIRM"] = {
+                text = "%s",
+                button1 = "Confirm",
+                button2 = "Cancel",
+                timeout = 0,
+                whileDead = 1,
+                hideOnEscape = 1,
+                preferredIndex = 3,
+                OnAccept = function(self)
+                    print("[Reckoning:Manage] StaticPopup OnAccept fired")
+                    local data = (self and self.data) or RECKONING_MANAGE_PENDING_DATA
+                    RECKONING_MANAGE_PENDING_DATA = nil
+                    doActionFromData(data)
+                end,
+            }
+        end
+        RECKONING_MANAGE_PENDING_DATA = {
+            achievementId = achievementId,
+            actionType = actionType,
+            opts = opts or {},
+        }
+        print("[Reckoning:Manage] StaticPopup_Show with pending data stored")
+        StaticPopup_Show("RECKONING_MANAGE_CONFIRM", confirmText, nil, RECKONING_MANAGE_PENDING_DATA)
+        return
+    end
+
+    -- Fallback: run immediately with no popup (e.g. older clients)
+    print("[Reckoning:Manage] ShowConfirm fallback (no StaticPopup), calling DoAction directly")
+    if ReckoningAchievementManage_DoAction then
+        ReckoningAchievementManage_DoAction(achievementId, actionType, opts)
+    end
+end
+
+function ReckoningAchievementManage_Show(achievementId)
+    achievementId = tonumber(achievementId)
+    if not achievementId then return end
+    local priv = Private or Reckoning.Private
+    local correctionSync = priv and priv.CorrectionSyncUtils
+    if not correctionSync or not correctionSync:IsAdmin() then return end
+
+    if not MANAGE_ACHIEVEMENT_DIALOG then
+        local f = CreateFrame("Frame", "ReckoningManageAchievementDialog", UIParent, "BackdropTemplate")
+        f:SetSize(400, 420)
+        f:SetPoint("CENTER")
+        f:SetFrameStrata("DIALOG")
+        f:SetToplevel(true)
+        f:EnableMouse(true)
+        f:SetMovable(true)
+        f:RegisterForDrag("LeftButton")
+        f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+        f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+        f:SetBackdrop({
+            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+            tile = true, tileSize = 32, edgeSize = 32,
+            insets = { left = 8, right = 8, top = 8, bottom = 8 }
+        })
+        f.pendingActions = {}
+
+        local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        title:SetPoint("TOP", 0, -14)
+        title:SetText("Action builder")
+        f.Title = title
+
+        local y = -42
+        local function CreateListDropdown(parent, options, defaultValue, width, anchorX, anchorY)
+            width = width or 80
+            local dd = CreateFrame("Frame", nil, parent, "UIDropDownMenuTemplate")
+            dd:SetPoint("TOPLEFT", anchorX or 16, anchorY or 0)
+            UIDropDownMenu_SetWidth(dd, width)
+            dd.selectedValue = defaultValue or (options[1] and options[1].value)
+            UIDropDownMenu_Initialize(dd, function(self, level)
+                if level ~= 1 then return end
+                for _, opt in ipairs(options) do
+                    local info = UIDropDownMenu_CreateInfo()
+                    info.text = opt.text
+                    info.func = function(_, arg1)
+                        self.selectedValue = arg1
+                        UIDropDownMenu_SetText(self, opt.text)
+                    end
+                    info.arg1 = opt.value
+                    UIDropDownMenu_AddButton(info, level)
+                end
+            end)
+            dd.SetSelectedValue = function(self, val)
+                self.selectedValue = val
+                for _, opt in ipairs(options) do
+                    if opt.value == val then UIDropDownMenu_SetText(self, opt.text) break end
+                end
+            end
+            return dd
+        end
+
+        local typeLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        typeLabel:SetPoint("TOPLEFT", 16, y)
+        typeLabel:SetText("Action type:")
+        y = y - 18
+        local typeOpts = {
+            { value = "full_invalidate", text = "Invalidate (all)" },
+            { value = "invalidate_from_date", text = "Invalidate from date" },
+            { value = "revalidate", text = "Revalidate" },
+            { value = "reset", text = "Reset (before date/version)" },
+        }
+        f.BuilderTypeDD = CreateListDropdown(f, typeOpts, "full_invalidate", 180, 16, y)
+        y = y - 26
+
+        local function UpdateBuilderVisibility(dialog)
+            local t = dialog.BuilderTypeDD and dialog.BuilderTypeDD.selectedValue or "full_invalidate"
+            local showFromDate = (t == "invalidate_from_date" or t == "reset")
+            local showVersion = (t == "revalidate" or t == "reset")
+            local showMode = (t == "reset")
+            if dialog.BuilderFromDateLabel then dialog.BuilderFromDateLabel:SetShown(showFromDate) end
+            if dialog.BuilderYearDD then dialog.BuilderYearDD:SetShown(showFromDate) end
+            if dialog.BuilderMonthDD then dialog.BuilderMonthDD:SetShown(showFromDate) end
+            if dialog.BuilderDayDD then dialog.BuilderDayDD:SetShown(showFromDate) end
+            if dialog.BuilderVersionLabel then dialog.BuilderVersionLabel:SetShown(showVersion) end
+            if dialog.BuilderVerMajorDD then dialog.BuilderVerMajorDD:SetShown(showVersion) end
+            if dialog.BuilderVerMinorDD then dialog.BuilderVerMinorDD:SetShown(showVersion) end
+            if dialog.BuilderVerPatchDD then dialog.BuilderVerPatchDD:SetShown(showVersion) end
+            if dialog.BuilderModeLabel then dialog.BuilderModeLabel:SetShown(showMode) end
+            if dialog.BuilderModeDD then dialog.BuilderModeDD:SetShown(showMode) end
+        end
+        f.UpdateBuilderVisibility = UpdateBuilderVisibility
+        UIDropDownMenu_Initialize(f.BuilderTypeDD, function(self, level)
+            if level ~= 1 then return end
+            for _, opt in ipairs(typeOpts) do
+                local info = UIDropDownMenu_CreateInfo()
+                info.text = opt.text
+                info.func = function(_, arg1)
+                    self.selectedValue = arg1
+                    UIDropDownMenu_SetText(self, opt.text)
+                    if f.UpdateBuilderVisibility then f.UpdateBuilderVisibility(f) end
+                end
+                info.arg1 = opt.value
+                UIDropDownMenu_AddButton(info, level)
+            end
+        end)
+
+        local fromDateLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        fromDateLabel:SetPoint("TOPLEFT", 16, y)
+        fromDateLabel:SetText("From date (invalidate from date):")
+        f.BuilderFromDateLabel = fromDateLabel
+        y = y - 18
+        local yearOpts, monthOpts, dayOpts = {}, {}, {}
+        for yr = 2025, 2031 do yearOpts[#yearOpts + 1] = { value = yr, text = tostring(yr) } end
+        for m = 1, 12 do monthOpts[#monthOpts + 1] = { value = m, text = tostring(m) } end
+        for d = 1, 31 do dayOpts[#dayOpts + 1] = { value = d, text = tostring(d) } end
+        local nowT = (type(date) == "function") and date("*t") or nil
+        local defY, defM, defD = 2026, 1, 1
+        if nowT and nowT.year then defY = math.max(2025, math.min(2031, nowT.year)) defM = nowT.month or 1 defD = nowT.day or 1 end
+        f.BuilderYearDD = CreateListDropdown(f, yearOpts, defY, 58, 16, y)
+        f.BuilderMonthDD = CreateListDropdown(f, monthOpts, defM, 45, 80, y)
+        f.BuilderDayDD = CreateListDropdown(f, dayOpts, defD, 45, 130, y)
+        f.BuilderFromDateRow = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        f.BuilderFromDateRow:SetPoint("TOPLEFT", 16, y)
+        y = y - 26
+
+        local minVerLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        minVerLabel:SetPoint("TOPLEFT", 16, y)
+        minVerLabel:SetText("Min version (revalidate) / Before version (reset):")
+        f.BuilderVersionLabel = minVerLabel
+        y = y - 18
+        local majorOpts, minorOpts, patchOpts = {}, {}, {}
+        for n = 0, 9 do majorOpts[#majorOpts + 1] = { value = n, text = tostring(n) } end
+        for n = 0, 9 do minorOpts[#minorOpts + 1] = { value = n, text = tostring(n) } end
+        for n = 0, 99 do patchOpts[#patchOpts + 1] = { value = n, text = tostring(n) } end
+        local verStr = (Private and Private.constants and Private.constants.ADDON_VERSION) or "1.0.0"
+        local vm, vn, vp = verStr:match("^(%d+)%.(%d+)%.(%d+)$")
+        vm, vn, vp = tonumber(vm) or 1, tonumber(vn) or 0, tonumber(vp) or 0
+        f.BuilderVerMajorDD = CreateListDropdown(f, majorOpts, vm, 42, 16, y)
+        f.BuilderVerMinorDD = CreateListDropdown(f, minorOpts, vn, 42, 64, y)
+        f.BuilderVerPatchDD = CreateListDropdown(f, patchOpts, vp, 42, 112, y)
+        f.BuilderVersionRow = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        f.BuilderVersionRow:SetPoint("TOPLEFT", 16, y)
+        y = y - 26
+
+        local modeLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        modeLabel:SetPoint("TOPLEFT", 16, y)
+        modeLabel:SetText("Reset mode (points only vs uncomplete):")
+        f.BuilderModeLabel = modeLabel
+        y = y - 18
+        f.BuilderModeDD = CreateListDropdown(f, { { value = "points", text = "Points only" }, { value = "uncomplete", text = "Uncomplete (virtual)" } }, "points", 120, 16, y)
+        f.BuilderModeRow = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        f.BuilderModeRow:SetPoint("TOPLEFT", 16, y)
+        y = y - 28
+
+        local addBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+        addBtn:SetSize(120, 24)
+        addBtn:SetPoint("TOPLEFT", 16, y)
+        addBtn:SetText("Add action")
+        addBtn:SetScript("OnClick", function()
+            local aid = f.achievementId
+            if not aid then return end
+            local t = f.BuilderTypeDD and f.BuilderTypeDD.selectedValue or "full_invalidate"
+            local opts = {}
+            if t == "invalidate_from_date" then
+                local Y = f.BuilderYearDD and f.BuilderYearDD.selectedValue or 2026
+                local M = f.BuilderMonthDD and f.BuilderMonthDD.selectedValue or 1
+                local D = f.BuilderDayDD and f.BuilderDayDD.selectedValue or 1
+                local ok, ts = pcall(function() return time({ year = Y, month = M, day = D, hour = 12, min = 0, sec = 0 }) end)
+                opts.fromDate = (ok and ts and ts > 0) and ts or time()
+            elseif t == "revalidate" then
+                local maj = f.BuilderVerMajorDD and f.BuilderVerMajorDD.selectedValue
+                local mn = f.BuilderVerMinorDD and f.BuilderVerMinorDD.selectedValue
+                local patch = f.BuilderVerPatchDD and f.BuilderVerPatchDD.selectedValue
+                opts.addonVersion = string.format("%d.%d.%d", maj or 1, mn or 0, patch or 0)
+                opts.effectiveAt = time()
+            elseif t == "reset" then
+                local Y = f.BuilderYearDD and f.BuilderYearDD.selectedValue or 2026
+                local M = f.BuilderMonthDD and f.BuilderMonthDD.selectedValue or 1
+                local D = f.BuilderDayDD and f.BuilderDayDD.selectedValue or 1
+                local ok, ts = pcall(function() return time({ year = Y, month = M, day = D, hour = 0, min = 0, sec = 0 }) end)
+                if ok and ts and ts > 0 then opts.beforeDate = ts end
+                local maj = f.BuilderVerMajorDD and f.BuilderVerMajorDD.selectedValue
+                local mn = f.BuilderVerMinorDD and f.BuilderVerMinorDD.selectedValue
+                local patch = f.BuilderVerPatchDD and f.BuilderVerPatchDD.selectedValue
+                if maj ~= nil or (mn ~= nil and mn ~= 0) or (patch ~= nil and patch ~= 0) then
+                    opts.beforeVersion = string.format("%d.%d.%d", maj or 0, mn or 0, patch or 0)
+                end
+                opts.mode = (f.BuilderModeDD and f.BuilderModeDD.selectedValue) or "points"
+            end
+            f.pendingActions[#f.pendingActions + 1] = { type = t, opts = opts }
+            ReckoningAchievementManage_RefreshPendingList(f)
+        end)
+        y = y - 32
+
+        local listLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        listLabel:SetPoint("TOPLEFT", 16, y)
+        listLabel:SetText("Queued actions:")
+        y = y - 18
+        local listFrame = CreateFrame("Frame", nil, f)
+        listFrame:SetPoint("TOPLEFT", 16, y)
+        listFrame:SetPoint("BOTTOM", 0, 52)
+        listFrame:SetWidth(368)
+        f.PendingListFrame = listFrame
+
+        local applyBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+        applyBtn:SetSize(100, 24)
+        applyBtn:SetPoint("BOTTOMRIGHT", -18, 16)
+        applyBtn:SetText("Apply")
+        applyBtn:SetScript("OnClick", function()
+            local aid = f.achievementId
+            if not aid or #f.pendingActions == 0 then f:Hide() return end
+            local priv = Private or Reckoning.Private
+            local correctionSync = priv and priv.CorrectionSyncUtils
+            if not correctionSync or not correctionSync.CreateCorrection or not correctionSync.BroadcastCorrection then
+                f:Hide()
+                return
+            end
+            for _, act in ipairs(f.pendingActions) do
+                local c = correctionSync:CreateCorrection(aid, act.type, act.opts)
+                if c then correctionSync:BroadcastCorrection(c) end
+            end
+            f.pendingActions = {}
+            ReckoningAchievementManage_RefreshPendingList(f)
+            f:Hide()
+            local frame = ReckoningAchievementFrame
+            if frame and ReckoningAdminActions_Refresh then ReckoningAdminActions_Refresh(frame) end
+            if frame and ReckoningAdminLog_Refresh then ReckoningAdminLog_Refresh(frame) end
+            if ReckoningAchievementFrame_SelectTab then ReckoningAchievementFrame_SelectTab(3) end
+            if ReckoningAdmin_SelectSubTab and frame and frame.Admin then ReckoningAdmin_SelectSubTab(frame, "actions") end
+        end)
+        f.ApplyBtn = applyBtn
+
+        local cancelBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+        cancelBtn:SetSize(100, 24)
+        cancelBtn:SetPoint("RIGHT", applyBtn, "LEFT", -8, 0)
+        cancelBtn:SetText("Cancel")
+        cancelBtn:SetScript("OnClick", function()
+            f.pendingActions = {}
+            f:Hide()
+        end)
+
+        MANAGE_ACHIEVEMENT_DIALOG = f
+    end
+
+    function ReckoningAchievementManage_RefreshPendingList(f)
+        if not f or not f.PendingListFrame then return end
+        local listFrame = f.PendingListFrame
+        for i = 1, 30 do
+            local r = listFrame["row" .. i]
+            if r then r:Hide() end
+        end
+        local y = 0
+        for i, act in ipairs(f.pendingActions or {}) do
+            local row = listFrame["row" .. i]
+            if not row then
+                row = CreateFrame("Frame", nil, listFrame)
+                listFrame["row" .. i] = row
+                row.label = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                row.label:SetPoint("LEFT", 0, 0)
+                row.remove = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+                row.remove:SetSize(50, 18)
+                row.remove:SetPoint("RIGHT", 0, 0)
+                row.remove:SetText("Remove")
+            end
+            row:SetPoint("TOPLEFT", 0, y)
+            row:SetSize(368, 20)
+            local typeName = (act.type == "full_invalidate" and "Invalidate (all)") or (act.type == "invalidate_from_date" and "Invalid from date") or (act.type == "revalidate" and "Revalidate") or (act.type == "reset" and "Reset") or act.type
+            row.label:SetText(typeName)
+            row.remove.idx = i
+            row.remove:SetScript("OnClick", function(self)
+                table.remove(f.pendingActions, self.idx)
+                ReckoningAchievementManage_RefreshPendingList(f)
+            end)
+            row:Show()
+            y = y - 22
+        end
+        if f.ApplyBtn then f.ApplyBtn:SetEnabled(#(f.pendingActions or {}) > 0) end
+    end
+
+    local f = MANAGE_ACHIEVEMENT_DIALOG
+    f.achievementId = achievementId
+    f.pendingActions = {}
+    local achievement = Data and Data._achievements and Data._achievements[achievementId]
+    local name = achievement and achievement.name or ("Achievement #" .. tostring(achievementId))
+    if f.Title then f.Title:SetText("Manage: " .. name) end
+    local nowT = (type(date) == "function") and date("*t") or nil
+    if f.BuilderYearDD and f.BuilderMonthDD and f.BuilderDayDD then
+        local yr = 2026
+        local mo, da = 1, 1
+        if nowT and nowT.year then yr = math.max(2025, math.min(2031, nowT.year)) mo = nowT.month or 1 da = nowT.day or 1 end
+        f.BuilderYearDD:SetSelectedValue(yr)
+        f.BuilderMonthDD:SetSelectedValue(mo)
+        f.BuilderDayDD:SetSelectedValue(da)
+    end
+    local verStr = (Private and Private.constants and Private.constants.ADDON_VERSION) or "1.0.0"
+    local vm, vn, vp = verStr:match("^(%d+)%.(%d+)%.(%d+)$")
+    vm, vn, vp = tonumber(vm) or 1, tonumber(vn) or 0, tonumber(vp) or 0
+    if f.BuilderVerMajorDD and f.BuilderVerMinorDD and f.BuilderVerPatchDD then
+        f.BuilderVerMajorDD:SetSelectedValue(vm)
+        f.BuilderVerMinorDD:SetSelectedValue(vn)
+        f.BuilderVerPatchDD:SetSelectedValue(vp)
+    end
+    ReckoningAchievementManage_RefreshPendingList(f)
+    if f.UpdateBuilderVisibility then f.UpdateBuilderVisibility(f) end
+    f:Show()
+end
+
+function ReckoningAchievementManage_DoAction(achievementId, actionType, opts)
+    print(string.format("[Reckoning:Manage] DoAction called achievementId=%s actionType=%s", tostring(achievementId), tostring(actionType)))
+    local priv = Private or Reckoning.Private
+    local correctionSync = priv and priv.CorrectionSyncUtils
+    local addon = priv and priv.Addon
+    if not correctionSync or not correctionSync.CreateCorrection or not correctionSync.BroadcastCorrection then
+        print("[Reckoning:Manage] DoAction early return: correction system not available")
+        if addon and addon.Print then addon:Print("Correction system not available.") end
+        return
+    end
+    opts = opts or {}
+    if actionType == "invalidate_from_date" and not opts.fromDate then
+        opts.fromDate = time()
+    end
+    if actionType == "revalidate" then
+        opts.addonVersion = (priv and priv.constants and priv.constants.ADDON_VERSION) or "preview"
+        opts.effectiveAt = time()
+    end
+    local c = correctionSync:CreateCorrection(achievementId, actionType, opts)
+    if not c then
+        print("[Reckoning:Manage] DoAction CreateCorrection returned nil")
+        return
+    end
+    print(string.format("[Reckoning:Manage] DoAction correction created id=%s broadcasting...", tostring(c.id)))
+    correctionSync:BroadcastCorrection(c)
+    if addon and addon.Print then
+        addon:Print("Your action will be broadcast to the guild.")
+    end
+    local frame = ReckoningAchievementFrame
+    if not frame then
+        print("[Reckoning:Manage] DoAction no ReckoningAchievementFrame ref")
+        return
+    end
+    print("[Reckoning:Manage] DoAction switching to Admin tab (3)...")
+    if ReckoningAchievementFrame_SelectTab then
+        ReckoningAchievementFrame_SelectTab(3)
+    end
+    print("[Reckoning:Manage] DoAction SelectSubTab actions...")
+    if ReckoningAdmin_SelectSubTab then
+        ReckoningAdmin_SelectSubTab(frame, "actions")
+    end
+    print("[Reckoning:Manage] DoAction calling Actions_Refresh and Log_Refresh...")
+    if ReckoningAdminActions_Refresh then
+        ReckoningAdminActions_Refresh(frame)
+    end
+    if ReckoningAdminLog_Refresh then
+        ReckoningAdminLog_Refresh(frame)
+    end
+    print("[Reckoning:Manage] DoAction done")
+end
+
+function ReckoningAchievementButton_OnClick(button, mouseButton)
     local frame = GetAchievementFrame()
     if not frame or not button.achievementId then
+        return
+    end
+
+    if mouseButton == "RightButton" then
+        if not UIDropDownMenu_Initialize or not ToggleDropDownMenu then
+            return
+        end
+        EnsureBugReportDialog()
+        local dd = EnsureBugReportDropDown()
+        dd.achievementId = button.achievementId
+        ToggleDropDownMenu(1, nil, dd, "cursor", 0, 0)
         return
     end
 
@@ -1616,7 +3040,29 @@ function ReckoningAchievementButton_OnEnter(button)
     if achievement.points then
         local const = Private and Private.constants
         local pointsName = const and const.DISPLAY and const.DISPLAY.POINTS_NAME or "Points"
-        GameTooltip:AddLine(pointsName .. ": " .. achievement.points, 1, 0.82, 0)
+        local counts = button.countsForThisPlayer
+        if counts == nil then
+            local priv = Private or Reckoning.Private
+            local correctionSync = priv and priv.CorrectionSyncUtils
+            local db = (priv and priv.Addon and priv.Addon.Database) or nil
+            local completedData = db and db.completed
+            local completedAt, addonVersion = nil, nil
+            if completedData and achievement.id and completedData[achievement.id] then
+                completedAt = completedData[achievement.id].completedAt
+                addonVersion = completedData[achievement.id].addonVersion and tostring(completedData[achievement.id].addonVersion) or nil
+            else
+                completedAt = time()
+                addonVersion = (priv and priv.constants and priv.constants.ADDON_VERSION) and tostring(priv.constants.ADDON_VERSION) or nil
+            end
+            counts = (not correctionSync or not correctionSync.ShouldCountAchievementPoints) or
+                correctionSync:ShouldCountAchievementPoints(achievement.id, completedAt, addonVersion)
+        end
+        if counts then
+            GameTooltip:AddLine(pointsName .. ": " .. achievement.points, 1, 0.82, 0)
+        else
+            GameTooltip:AddLine(pointsName .. ": 0 (does not count)", 0.8, 0.4, 0.4)
+            GameTooltip:AddLine("Invalidated or version restricted.", 0.65, 0.5, 0.5, true)
+        end
     end
     GameTooltip:Show()
 end
@@ -2189,6 +3635,11 @@ function ReckoningAchievementFrame_UpdateAchievements(frame)
     local searchText = frame.searchText or ""
     local achievements = categoryId and Data:GetAchievements(categoryId, filter, searchText) or {}
     local offset = HybridScrollFrame_GetOffset(scrollFrame)
+    local priv = Private or Reckoning.Private
+    local correctionSync = priv and priv.CorrectionSyncUtils
+    local addon = priv and priv.Addon
+    local db = addon and addon.Database
+    local completedData = db and db.completed
 
     -- Calculate total height with variable button heights
     local totalHeight = 0
@@ -2213,6 +3664,21 @@ function ReckoningAchievementFrame_UpdateAchievements(frame)
             button.selected = (frame.selectedAchievementId == achievement.id)
             button.collapsed = not button.selected
 
+            -- Whether this achievement counts for points (corrections + version gating)
+            local completedAt, addonVersion = nil, nil
+            if completedData and achievement.id and completedData[achievement.id] then
+                completedAt = completedData[achievement.id].completedAt
+                addonVersion = completedData[achievement.id].addonVersion and tostring(completedData[achievement.id].addonVersion) or nil
+            else
+                completedAt = time()
+                addonVersion = (priv and priv.constants and priv.constants.ADDON_VERSION) and tostring(priv.constants.ADDON_VERSION) or nil
+            end
+            local countsForThisPlayer = true
+            if correctionSync and correctionSync.ShouldCountAchievementPoints then
+                countsForThisPlayer = correctionSync:ShouldCountAchievementPoints(achievement.id, completedAt, addonVersion)
+            end
+            button.countsForThisPlayer = countsForThisPlayer
+
             -- Set text
             if button.label then
                 button.label:SetText(achievement.name or "")
@@ -2226,9 +3692,13 @@ function ReckoningAchievementFrame_UpdateAchievements(frame)
                 button.icon.texture:SetTexture(achievement.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
             end
 
-            -- Set points on shield
+            -- Set points on shield (0 if invalid)
             if button.shield and button.shield.points then
-                button.shield.points:SetText(achievement.points and tostring(achievement.points) or "")
+                if countsForThisPlayer then
+                    button.shield.points:SetText(achievement.points and tostring(achievement.points) or "")
+                else
+                    button.shield.points:SetText("0")
+                end
             end
 
             -- Hide check mark (we use visual styling instead)
@@ -2323,6 +3793,37 @@ function ReckoningAchievementFrame_UpdateAchievements(frame)
                 end
                 if button.SetBackdropBorderColor then
                     button:SetBackdropBorderColor(0.5, 0.5, 0.5)
+                end
+            end
+
+            -- Override: invalid (does not count for points) - reddish grey tint
+            if not countsForThisPlayer then
+                if button.background then
+                    button.background:SetTexture(
+                        "Interface\\AchievementFrame\\UI-Achievement-Parchment-Horizontal-Desaturated")
+                    button.background:SetVertexColor(0.85, 0.5, 0.5, 1)
+                end
+                if button.icon then
+                    if button.icon.texture then
+                        button.icon.texture:SetVertexColor(0.7, 0.4, 0.4, 1)
+                    end
+                    if button.icon.frame then
+                        button.icon.frame:SetVertexColor(0.75, 0.5, 0.5, 1)
+                    end
+                end
+                if button.shield and button.shield.points then
+                    button.shield.points:SetVertexColor(0.8, 0.4, 0.4, 1)
+                end
+                if button.label then
+                    button.label:SetVertexColor(0.85, 0.5, 0.5, 1)
+                end
+                if button.SetBackdropBorderColor then
+                    local color = Reckoning_Achievements.RED_BORDER_COLOR
+                    if color and color.GetRGB then
+                        button:SetBackdropBorderColor(color:GetRGB())
+                    else
+                        button:SetBackdropBorderColor(0.7, 0.15, 0.05)
+                    end
                 end
             end
 
