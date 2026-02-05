@@ -263,6 +263,32 @@ end
 -- Achievement Progress Persistence
 -------------------------------------------------------------------------------
 
+---Wipe all local (player) achievement progress from the database.
+---This intentionally does NOT touch settings or guild sync caches.
+function databaseUtils:WipeLocalAchievementProgress()
+    local addon = Private.Addon
+    if not addon or not addon.Database then return end
+
+    -- Encoded format
+    addon.Database.achievementData = nil
+    addon.Database.achievementHash = nil
+    addon.Database.achievementVersion = 1
+    addon.Database.lastSaved = 0
+
+    -- Raw fallback (if encoding failed previously)
+    addon.Database.achievementDataRaw = nil
+
+    -- Legacy fields (kept for backwards compatibility)
+    addon.Database.progress = {}
+    addon.Database.criteriaProgress = {}
+    addon.Database.completed = {}
+    addon.Database.completedTimestamps = {}
+    addon.Database.lastWeek = 0
+
+    -- Exploration progress used by the achievement system
+    addon.Database.exploredZones = {}
+end
+
 ---Save achievement progress to SavedVariables
 ---@param achievements table Achievement progress data
 function databaseUtils:SaveAchievementProgress(achievements)

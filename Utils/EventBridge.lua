@@ -1333,6 +1333,24 @@ end
 -- Loot Handling (ITEM_CRAFTED, FISH_CAUGHT, BADGE_EARNED, RESOURCE_GATHERED)
 -------------------------------------------------------------------------------
 
+-- For primal/mote weekly achievements: primals are worth 3 motes.
+local PRIMAL_MOTE_EQUIVALENT = {
+    ["Primal Mana"] = 3,
+    ["Mote of Mana"] = 1,
+    ["Primal Fire"] = 3,
+    ["Mote of Fire"] = 1,
+    ["Primal Shadow"] = 3,
+    ["Mote of Shadow"] = 1,
+    ["Primal Air"] = 3,
+    ["Mote of Air"] = 1,
+    ["Primal Water"] = 3,
+    ["Mote of Water"] = 1,
+    ["Primal Earth"] = 3,
+    ["Mote of Earth"] = 1,
+    ["Primal Life"] = 3,
+    ["Mote of Life"] = 1,
+}
+
 function eventBridge:HandleLootMessage(message)
     if not message then return end
 
@@ -1355,6 +1373,7 @@ function eventBridge:HandleLootMessage(message)
     if itemLink then
         local itemId = tonumber(itemLink:match("item:(%d+)"))
         local itemName = itemLink:match("%[(.-)%]")
+        local quantity = tonumber(message:match("|h|r%s*[xX](%d+)")) or 1
 
         if itemId then
             -- Check if it's a fish and we were fishing
@@ -1379,11 +1398,19 @@ function eventBridge:HandleLootMessage(message)
             end
 
             -- Check for primal loot (Mana Matters, Playing with Fire, Primal Procurer weekly achievements)
-            if itemName and itemName:find("Primal") then
+            if itemName and (itemName:find("Primal") or itemName:find("Mote of")) then
+                local eq = PRIMAL_MOTE_EQUIVALENT[itemName]
+                local count = quantity
+                if eq then
+                    count = quantity * eq
+                end
+
                 self:Fire("PRIMAL_LOOTED", {
                     itemId = itemId,
                     itemName = itemName,
                     zone = GetZoneText() or "Unknown",
+                    count = count,      -- mote-equivalent units when known, else quantity
+                    quantity = quantity -- raw stack quantity from loot message (best-effort)
                 })
             end
 

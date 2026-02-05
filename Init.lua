@@ -5,6 +5,14 @@ local const = Private.constants
 -- Account-wide SavedVariables (achievements are account-wide)
 local defaultDatabase = {
     version = 1,
+    settings = {
+        guildSync = {
+            showLogs = false,
+        },
+    },
+    -- Achievements only count while you are in a guild.
+    -- We store the last known guild key to detect join/leave/switch and wipe achievement progress accordingly.
+    achievementGuildKey = nil,
     -- Encoded achievement data (with hash verification)
     achievementData = nil,        -- Encoded + compressed achievement progress
     achievementHash = nil,        -- Hash for tamper detection

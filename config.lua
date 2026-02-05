@@ -77,7 +77,8 @@ aUtils:RegisterCategories({
 -- Achievement Registration
 -------------------------------------------------------------------------------
 
-aUtils:RegisterAchievements({
+---@type Achievement[]
+local ACHIEVEMENTS = {
 	-------------------------------------------------------------------------------
 	-- DUNGEON/HEROIC ACHIEVEMENTS (Category 1, SubCategory 10)
 	-------------------------------------------------------------------------------
@@ -1715,7 +1716,7 @@ aUtils:RegisterAchievements({
 	{
 		id = 6002,
 		name = "Primal Procurer (Shadow)",
-		description = "Loot 25 Primal Shadow in Outland",
+		description = "Loot 5 Primal Shadow (or 15 Mote of Shadow) in Outland",
 		points = 10,
 		category = 6,
 		subCategory = 60,
@@ -1724,9 +1725,9 @@ aUtils:RegisterAchievements({
 		startWeek = 1,
 		trigger = {
 			event = "PRIMAL_LOOTED",
-			conditions = { itemName = "Primal Shadow" }
+			conditions = { itemName = { "Primal Shadow", "Mote of Shadow" } }
 		},
-		progress = { type = "count", required = 25 }
+		progress = { type = "either", required = 15 }
 	},
 	{
 		id = 6003,
@@ -1764,7 +1765,7 @@ aUtils:RegisterAchievements({
 	{
 		id = 6005,
 		name = "Playing with Fire",
-		description = "Loot 25 Primal Fire in Outland",
+		description = "Loot 5 Primal Fire (or 15 Mote of Fire) in Outland",
 		points = 10,
 		category = 6,
 		subCategory = 60,
@@ -1772,9 +1773,9 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "PRIMAL_LOOTED",
-			conditions = { itemName = "Primal Fire" }
+			conditions = { itemName = { "Primal Fire", "Mote of Fire" } }
 		},
-		progress = { type = "count", required = 25 }
+		progress = { type = "either", required = 15 }
 	},
 	{
 		id = 6006,
@@ -1809,7 +1810,7 @@ aUtils:RegisterAchievements({
 	{
 		id = 6008,
 		name = "Mana Matters",
-		description = "Loot 25 Primal Mana in Netherstorm",
+		description = "Loot 5 Primal Mana (or 15 Mote of Mana) in Netherstorm",
 		points = 10,
 		category = 6,
 		subCategory = 60,
@@ -1817,9 +1818,9 @@ aUtils:RegisterAchievements({
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "PRIMAL_LOOTED",
-			conditions = { itemName = "Primal Mana", zone = "Netherstorm" }
+			conditions = { itemName = { "Primal Mana", "Mote of Mana" }, zone = "Netherstorm" }
 		},
-		progress = { type = "count", required = 25 }
+		progress = { type = "either", required = 15 }
 	},
 	{
 		id = 6009,
@@ -4182,7 +4183,8 @@ aUtils:RegisterAchievements({
 		}
 	},
 
-})
+}
+aUtils:RegisterAchievements(ACHIEVEMENTS)
 
 -------------------------------------------------------------------------------
 -- Display Customization

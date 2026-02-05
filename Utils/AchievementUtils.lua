@@ -22,7 +22,7 @@ local Enums = Private.Enums
 ---@field criteriaSet? table[]
 
 ---@class AchievementProgress
----@field type "count"|"criteria"|"meta"
+---@field type "count"|"criteria"|"meta"|"either"
 ---@field required? number
 ---@field criteriaKey? string Payload field name for unique criteria (e.g. "instance", "zone")
 ---@field subCategory? number For type "meta", count completed achievements in this subCategory

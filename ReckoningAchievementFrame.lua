@@ -1019,6 +1019,33 @@ end
 -- Guild Sync Button Functionality
 -------------------------------------------------------------------------------
 
+local function GetGuildSyncShowLogs()
+    local addon = Private and Private.Addon
+    if not addon or not addon.GetDatabaseValue then
+        return false
+    end
+    return addon:GetDatabaseValue("settings.guildSync.showLogs", true) == true
+end
+
+function ReckoningGuildFrame_InitShowLogsToggle(toggle)
+    if not toggle or not toggle.SetChecked then return end
+    toggle:SetChecked(GetGuildSyncShowLogs())
+end
+
+function ReckoningGuildFrame_ToggleShowLogs(toggle)
+    local addon = Private and Private.Addon
+    if not addon or not addon.SetDatabaseValue then return end
+
+    local enabled = (toggle and toggle.GetChecked and toggle:GetChecked()) and true or false
+    addon:SetDatabaseValue("settings.guildSync.showLogs", enabled)
+
+    if enabled then
+        addon:Print("Guild sync logs enabled.")
+    else
+        addon:Print("Guild sync logs disabled.")
+    end
+end
+
 function ReckoningGuildFrame_TriggerSync()
     local guildSync = Private.GuildSyncUtils
     if not guildSync then
@@ -1071,6 +1098,11 @@ local function ReckoningGuildEventsScrollFrame_OnLoad(scrollFrame)
     -- Set up sync button text
     if parentEvents and parentEvents.Header and parentEvents.Header.SyncButton then
         parentEvents.Header.SyncButton:SetText("Sync")
+    end
+
+    -- Initialize show logs toggle state
+    if parentEvents and parentEvents.Header and parentEvents.Header.ShowLogsToggle then
+        ReckoningGuildFrame_InitShowLogsToggle(parentEvents.Header.ShowLogsToggle)
     end
 end
 
@@ -1137,10 +1169,12 @@ local function ReckoningGuildRosterButton_OnLoad(button)
     button.Name:SetPoint("LEFT", 10, 0)
     button.Class = button:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     button.Class:SetPoint("LEFT", 150, 0)
+    button.Points = button:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    button.Points:SetPoint("LEFT", 250, 0)
     button.Version = button:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    button.Version:SetPoint("LEFT", 260, 0)
+    button.Version:SetPoint("LEFT", 330, 0)
     button.LastSeen = button:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    button.LastSeen:SetPoint("LEFT", 360, 0)
+    button.LastSeen:SetPoint("LEFT", 420, 0)
 
     -- Alternating background
     if not button.bg then
@@ -1162,6 +1196,9 @@ local function ReckoningGuildRosterButton_Update(button, index)
             displayClass = displayClass:sub(1,1) .. displayClass:sub(2):lower()
         end
         button.Class:SetText(displayClass)
+
+        local points = data.totalPoints or 0
+        button.Points:SetText(tostring(points))
 
         button.Version:SetText(data.version or "N/A")
 
@@ -1198,6 +1235,9 @@ local function ReckoningGuildRosterButton_Update(button, index)
         if classColor then
             button.Class:SetTextColor(classColor[1], classColor[2], classColor[3])
         end
+
+        -- Points color (gold-ish)
+        button.Points:SetTextColor(1, 0.82, 0)
 
         -- Alternating row background
         if index % 2 == 0 then

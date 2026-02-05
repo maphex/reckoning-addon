@@ -119,7 +119,8 @@ function engine:LoadProgress()
 end
 
 ---Save progress to SavedVariables (called on logout)
-function engine:SaveProgress()
+---@param silent? boolean If true, don't print chat messages
+function engine:SaveProgress(silent)
     local dbUtils = Private.DatabaseUtils
     if not dbUtils then
         print("|cffff0000[Reckoning] SaveProgress: DatabaseUtils not found|r")
@@ -161,13 +162,47 @@ function engine:SaveProgress()
     -- Encode and save
     local success = dbUtils:SaveAchievementProgress(data)
 
-    if success then
+    if success and not silent then
         print("|cff00ff00[Reckoning] Achievement progress saved successfully!|r")
     end
 
     -- Also save explored zones from EventBridge
     if Private.EventBridge and Private.EventBridge.exploredZones then
         dbUtils:SaveExploredZones(Private.EventBridge.exploredZones)
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Guild-Gated Achievements (Wipe on join/leave)
+-------------------------------------------------------------------------------
+
+---Reset all in-memory progress and refresh UI to 0.
+---Does not write to the database by itself.
+function engine:ResetAllProgress()
+    self.progressData = {}
+    self.criteriaProgress = {}
+    self.completedAchievements = {}
+    self.completedTimestamps = {}
+    self.failedState = {}
+    self.lastWeek = 0
+
+    -- Clear explored zone cache used by EventBridge-based exploration triggers
+    if Private.EventBridge then
+        Private.EventBridge.exploredZones = {}
+    end
+
+    -- Force UI to show 0 progress everywhere
+    local Data = Reckoning and Reckoning.Achievements
+    local aUtils = Private.AchievementUtils
+    if Data and aUtils and aUtils.achievements then
+        for id, achievement in pairs(aUtils.achievements) do
+            local total = achievement.progress and achievement.progress.required or 1
+            Data:SetAchievementProgress(id, 0, total, false)
+        end
+    end
+
+    if ReckoningAchievementFrame_Refresh then
+        ReckoningAchievementFrame_Refresh()
     end
 end
 
@@ -187,6 +222,11 @@ function engine:SyncUIFromLoadedData()
         local current
         if progress and progress.type == "criteria" then
             current = self:CountCompletedCriteria(self:GetCriteriaProgress(id))
+        elseif progress and progress.type == "either" then
+            local either = self:GetCriteriaProgress(id)
+            local primal = tonumber(either and either.primal) or 0
+            local mote = tonumber(either and either.mote) or 0
+            current = math.max(primal, mote)
         elseif progress and progress.type == "meta" and progress.subCategory then
             local ids = aUtils:GetAchievementIdsInSubCategory(progress.subCategory)
             current = 0
@@ -267,6 +307,11 @@ end
 ---@param event string
 ---@param payload table
 function engine:OnBridgeEvent(event, payload)
+    -- Achievements are guild-gated in this project: do not evaluate or progress anything while not in a guild.
+    if type(IsInGuild) == "function" and not IsInGuild() then
+        return
+    end
+
     if event == "BATTLEGROUND_MATCH_START" then
         self:ResetMatchProgress()
     end
@@ -579,9 +624,56 @@ function engine:UpdateProgress(achievement, payload, event)
         return
     end
 
+    if progress.type == "either" then
+        -- Either/or progress (used for Primal vs Mote weekly achievements).
+        -- Important: Primals and Motes do NOT add together; we track two separate counters
+        -- and complete when either one reaches `progress.required`.
+        local required = progress.required or 1
+        local itemName = payload and payload.itemName
+        local amount = 1
+        if payload and type(payload.count) == "number" then
+            amount = payload.count
+        end
+
+        local either = self:GetCriteriaProgress(achievement.id)
+        either.primal = tonumber(either.primal) or 0
+        either.mote = tonumber(either.mote) or 0
+
+        if type(itemName) == "string" then
+            if itemName:find("^Primal%s") then
+                either.primal = either.primal + amount
+            elseif itemName:find("^Mote%s+of%s") then
+                either.mote = either.mote + amount
+            else
+                -- Unknown kind; don't risk corrupting progress
+                return
+            end
+        else
+            return
+        end
+
+        self:SaveCriteriaProgress(achievement.id, either)
+
+        local best = math.max(either.primal, either.mote)
+        if debugUtils then
+            debugUtils:LogProgress(achievement.id, achievement.name, best, required)
+        end
+
+        if either.primal >= required or either.mote >= required then
+            self:CompleteAchievement(achievement)
+        else
+            self:UpdateUIProgress(achievement.id, best, required)
+        end
+        return
+    end
+
     if progress.type == "count" then
         local current = self:GetProgress(achievement.id)
-        current = current + 1
+        local increment = 1
+        if payload and type(payload.count) == "number" then
+            increment = payload.count
+        end
+        current = current + increment
         self:SetAchievementProgress(achievement.id, current)
 
         if debugUtils then

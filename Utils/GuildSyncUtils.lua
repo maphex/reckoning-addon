@@ -45,8 +45,50 @@ local guildSync = {
     lastResponseToRequester = {},
     ---@type number Minimum seconds before sending another full response to same requester
     RESPONSE_COOLDOWN = 60,
+
+    ---------------------------------------------------------------------------
+    -- Version update nudges (guild-coordinated)
+    ---------------------------------------------------------------------------
+
+    ---@type table<string, {timer:any?, requestId:string?, requestedAt:number?, whisperTarget:string?, verifyTimer:any?}>
+    pendingVersionChecks = {},
+    ---@type table<string, number> shortName -> last time we (or someone) notified
+    recentNotified = {},
+    ---@type table<string, number> shortName -> last notify timestamp (persisted)
+    versionNotifyCooldown = {},
+    ---@type number Minimum seconds to delay notify after HELLO
+    VERSION_NOTIFY_MIN_DELAY = 5,
+    ---@type number Maximum seconds to delay notify after HELLO
+    VERSION_NOTIFY_MAX_DELAY = 25,
+    ---@type number Per-target cooldown in seconds (once per day)
+    VERSION_NOTIFY_COOLDOWN_SECONDS = 24 * 60 * 60,
+
+    ---@type number Last time we printed a self-update reminder
+    selfUpdateReminderLastAt = 0,
+    ---@type number Minimum seconds between self-update reminders
+    SELF_UPDATE_REMINDER_COOLDOWN_SECONDS = 2 * 60 * 60,
 }
 Private.GuildSyncUtils = guildSync
+
+function guildSync:ShouldShowLogs()
+    local addon = Private and Private.Addon
+    if not addon or not addon.GetDatabaseValue then
+        return false
+    end
+    return addon:GetDatabaseValue("settings.guildSync.showLogs", true) == true
+end
+
+---@param message string
+---@param ... any
+function guildSync:SyncLog(message, ...)
+    if not self:ShouldShowLogs() then return end
+    local addon = Private and Private.Addon
+    if addon and addon.FPrint then
+        addon:FPrint("[GuildSync] " .. (message or ""), ...)
+    else
+        print("[GuildSync] " .. string.format(message or "", ...))
+    end
+end
 
 function guildSync:IsProtocolCompatible(data)
     if not data then return false end
@@ -76,6 +118,109 @@ function guildSync:ShortNameFromSender(sender)
     return shortName
 end
 
+-------------------------------------------------------------------------------
+-- Version Helpers (SemVer)
+-------------------------------------------------------------------------------
+
+---@param v string|nil
+---@return number|nil major
+---@return number|nil minor
+---@return number|nil patch
+function guildSync:ParseSemVer(v)
+    if type(v) ~= "string" then return nil, nil, nil end
+    v = v:gsub("^%s+", ""):gsub("%s+$", "")
+    if v == "" or v == "preview" or v == "@project-version@" then return nil, nil, nil end
+    v = v:gsub("^v", "")
+
+    local major, minor, patch = v:match("^(%d+)%.(%d+)%.(%d+)")
+    if major then
+        return tonumber(major), tonumber(minor), tonumber(patch)
+    end
+
+    major, minor = v:match("^(%d+)%.(%d+)")
+    if major then
+        return tonumber(major), tonumber(minor), 0
+    end
+
+    major = v:match("^(%d+)")
+    if major then
+        return tonumber(major), 0, 0
+    end
+
+    return nil, nil, nil
+end
+
+---@param a string|nil
+---@param b string|nil
+---@return number|nil cmp -1 if a<b, 0 if a==b, 1 if a>b, nil if not comparable
+function guildSync:CompareSemVer(a, b)
+    local a1, a2, a3 = self:ParseSemVer(a)
+    local b1, b2, b3 = self:ParseSemVer(b)
+    if not a1 or not b1 then return nil end
+
+    if a1 ~= b1 then return (a1 > b1) and 1 or -1 end
+    if a2 ~= b2 then return (a2 > b2) and 1 or -1 end
+    if a3 ~= b3 then return (a3 > b3) and 1 or -1 end
+    return 0
+end
+
+---@param otherVersion string|nil
+---@return boolean|nil newer True if our version > otherVersion, nil if not comparable (unless other is non-N/A unknown; then true)
+function guildSync:IsMyVersionNewerThan(otherVersion)
+    local mine = const and const.ADDON_VERSION or nil
+    if type(otherVersion) == "string" and otherVersion ~= "" and otherVersion ~= "N/A" then
+        local m1 = self:ParseSemVer(mine)
+        local o1 = self:ParseSemVer(otherVersion)
+        -- If our version is SemVer but theirs is not (preview/placeholder/custom like @project-version@), treat as outdated.
+        if m1 and not o1 then
+            return true
+        end
+    end
+
+    local cmp = self:CompareSemVer(mine, otherVersion)
+    if cmp == nil then return nil end
+    return cmp == 1
+end
+
+---@param otherVersion string|nil
+---@return boolean|nil newer True if otherVersion > ours, nil if not comparable
+function guildSync:IsOtherVersionNewerThanMine(otherVersion)
+    local mine = const and const.ADDON_VERSION or nil
+    local cmp = self:CompareSemVer(otherVersion, mine)
+    if cmp == nil then return nil end
+    return cmp == 1
+end
+
+---@param otherVersion string|nil
+---@param senderShort string|nil
+function guildSync:MaybePrintSelfUpdateReminder(otherVersion, senderShort)
+    local newer = self:IsOtherVersionNewerThanMine(otherVersion)
+    if newer ~= true then return end
+
+    local now = time()
+    local last = tonumber(self.selfUpdateReminderLastAt) or 0
+    local cooldown = self.SELF_UPDATE_REMINDER_COOLDOWN_SECONDS or (2 * 60 * 60)
+    if (now - last) < cooldown then
+        return
+    end
+
+    self.selfUpdateReminderLastAt = now
+    self:SaveCachedData()
+
+    local addon = Private.Addon
+    if not addon or not addon.Print then return end
+
+    local mine = const and const.ADDON_VERSION or "?"
+    local theirs = otherVersion or "?"
+    local who = senderShort or "a guild member"
+    addon:Print(string.format(
+        "Update available: you are on %s, %s is on %s. Update: https://www.curseforge.com/wow/addons/reckoning",
+        tostring(mine),
+        tostring(who),
+        tostring(theirs)
+    ))
+end
+
 function guildSync:CleanupPendingChunks()
     local now = time()
     local timeout = 60
@@ -101,6 +246,9 @@ local MSG_TYPE = {
     HEARTBEAT = "GSYNC_HB",           -- Periodic incremental sync (small slices)
     COMPLETION = "GSYNC_COMP",        -- Single achievement completion broadcast
     HELLO = "GSYNC_HELLO",            -- Announce presence on login
+    VERREQ = "GSYNC_VERREQ",          -- Version verify request (WHISPER)
+    VERRESP = "GSYNC_VERRESP",        -- Version verify response (WHISPER)
+    VERNOTIFIED = "GSYNC_VERNFY",     -- Someone already notified (GUILD)
     ROSTER_REQUEST = "GSYNC_ROSTER",  -- Request roster info
     ROSTER_RESPONSE = "GSYNC_RDATA",  -- Roster data response
 }
@@ -159,6 +307,18 @@ function guildSync:RegisterMessageHandlers()
         self:OnHelloReceived(data)
     end)
 
+    comms:AddCallback(MSG_TYPE.VERREQ, function(data)
+        self:OnVersionRequest(data)
+    end)
+
+    comms:AddCallback(MSG_TYPE.VERRESP, function(data)
+        self:OnVersionResponse(data)
+    end)
+
+    comms:AddCallback(MSG_TYPE.VERNOTIFIED, function(data)
+        self:OnVersionNotified(data)
+    end)
+
     comms:AddCallback(MSG_TYPE.ROSTER_REQUEST, function(data)
         self:OnRosterRequest(data)
     end)
@@ -180,6 +340,8 @@ function guildSync:LoadCachedData()
     if db.guildCache then
         self.memberData = db.guildCache.members or {}
         self.recentEvents = db.guildCache.events or {}
+        self.versionNotifyCooldown = db.guildCache.versionNotifyCooldown or {}
+        self.selfUpdateReminderLastAt = tonumber(db.guildCache.selfUpdateReminderLastAt) or 0
 
         -- Clean old events
         self:CleanOldEvents()
@@ -200,6 +362,8 @@ function guildSync:SaveCachedData()
     addon.Database.guildCache = {
         members = self.memberData,
         events = self.recentEvents,
+        versionNotifyCooldown = self.versionNotifyCooldown,
+        selfUpdateReminderLastAt = self.selfUpdateReminderLastAt,
         savedAt = time(),
     }
 end
@@ -400,6 +564,8 @@ function guildSync:SendHello()
         protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
         timestamp = time(),
     }, "GUILD")
+
+    self:SyncLog("HELLO sent (v=%s)", tostring(const.ADDON_VERSION or "?"))
 end
 
 function guildSync:RequestFullSync()
@@ -412,12 +578,15 @@ function guildSync:RequestFullSync()
 
     self.lastSyncRequest = now
 
+    local requestId = tostring(now) .. "-" .. tostring(math.random(100000, 999999))
     Private.CommsUtils:SendMessage(MSG_TYPE.SYNC_REQUEST, {
         requester = UnitName("player"),
-        requestId = tostring(now) .. "-" .. tostring(math.random(100000, 999999)),
+        requestId = requestId,
         protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
         timestamp = now,
     }, "GUILD")
+
+    self:SyncLog("SYNC_REQUEST sent (requestId=%s)", requestId)
 
     local debugUtils = Private.DebugUtils
     if debugUtils then
@@ -451,6 +620,249 @@ function guildSync:OnHelloReceived(data)
     if debugUtils then
         debugUtils:Log("GUILD", "Received hello from %s (v%s)", senderShort, data.version or "?")
     end
+
+    self:SyncLog("HELLO received from %s (v=%s)", senderShort, tostring(data.version or "?"))
+
+    -- If they're outdated, schedule a verified update whisper (guild-deduped)
+    self:MaybeScheduleVersionUpdateNudge(senderShort, data.sender, data.version)
+end
+
+-------------------------------------------------------------------------------
+-- Version Update Nudges (verified + guild-deduped)
+-------------------------------------------------------------------------------
+
+---@param shortName string
+function guildSync:CancelPendingVersionCheck(shortName)
+    local state = self.pendingVersionChecks and self.pendingVersionChecks[shortName]
+    if not state then return end
+
+    if state.timer and state.timer.Cancel then
+        state.timer:Cancel()
+    end
+    if state.verifyTimer and state.verifyTimer.Cancel then
+        state.verifyTimer:Cancel()
+    end
+    self.pendingVersionChecks[shortName] = nil
+end
+
+---@param shortName string
+---@param now number
+---@return boolean
+function guildSync:IsNotifySuppressed(shortName, now)
+    if not shortName or shortName == "" then return true end
+    now = now or time()
+
+    local last = self.recentNotified and self.recentNotified[shortName] or nil
+    if not last then
+        last = self.versionNotifyCooldown and self.versionNotifyCooldown[shortName] or nil
+    end
+
+    if not last then return false end
+    return (now - last) < (self.VERSION_NOTIFY_COOLDOWN_SECONDS or (24 * 60 * 60))
+end
+
+---@param shortName string
+---@param notifiedAt number
+function guildSync:MarkNotified(shortName, notifiedAt)
+    if not shortName or shortName == "" then return end
+    local t = notifiedAt or time()
+    self.recentNotified[shortName] = t
+    self.versionNotifyCooldown[shortName] = t
+end
+
+---@param shortName string
+---@param whisperTarget string|nil
+---@param theirVersion string|nil
+function guildSync:MaybeScheduleVersionUpdateNudge(shortName, whisperTarget, theirVersion)
+    if not shortName or shortName == "" then return end
+
+    local newer = self:IsMyVersionNewerThan(theirVersion)
+    if newer ~= true then
+        self:SyncLog("VersionNudge: not scheduling for %s (theirVersion=%s, newer=%s)", tostring(shortName), tostring(theirVersion), tostring(newer))
+        return
+    end
+
+    local now = time()
+    if self:IsNotifySuppressed(shortName, now) then
+        self:SyncLog("VersionNudge: suppressed for %s (cooldown active)", tostring(shortName))
+        return
+    end
+
+    -- If a check is already scheduled, don't schedule another.
+    if self.pendingVersionChecks[shortName] then
+        self:SyncLog("VersionNudge: already pending for %s", tostring(shortName))
+        return
+    end
+
+    local delayMin = self.VERSION_NOTIFY_MIN_DELAY or 5
+    local delayMax = self.VERSION_NOTIFY_MAX_DELAY or 25
+    if delayMax < delayMin then delayMax = delayMin end
+    local delay = math.random(delayMin, delayMax)
+
+    local timer = C_Timer.NewTimer(delay, function()
+        self:StartVersionVerify(shortName, whisperTarget)
+    end)
+
+    self:SyncLog("VersionNudge: scheduled verify for %s in %ds (theirVersion=%s)", tostring(shortName), tonumber(delay) or 0, tostring(theirVersion))
+    self.pendingVersionChecks[shortName] = {
+        timer = timer,
+        requestId = nil,
+        requestedAt = nil,
+        whisperTarget = whisperTarget or shortName,
+        verifyTimer = nil,
+    }
+end
+
+---@param shortName string
+---@param whisperTarget string|nil
+function guildSync:StartVersionVerify(shortName, whisperTarget)
+    if not shortName or shortName == "" then return end
+
+    local now = time()
+    if self:IsNotifySuppressed(shortName, now) then
+        self:SyncLog("VersionNudge: verify aborted for %s (suppressed)", tostring(shortName))
+        self:CancelPendingVersionCheck(shortName)
+        return
+    end
+
+    local member = self.memberData and self.memberData[shortName] or nil
+    local theirVersion = member and member.version or nil
+    local newer = self:IsMyVersionNewerThan(theirVersion)
+    if newer ~= true then
+        self:SyncLog("VersionNudge: verify aborted for %s (theirVersion=%s, newer=%s)", tostring(shortName), tostring(theirVersion), tostring(newer))
+        self:CancelPendingVersionCheck(shortName)
+        return
+    end
+
+    local comms = Private.CommsUtils
+    if not comms then
+        self:CancelPendingVersionCheck(shortName)
+        return
+    end
+
+    local state = self.pendingVersionChecks[shortName] or {}
+    local target = whisperTarget or state.whisperTarget or shortName
+    local requestId = tostring(now) .. "-" .. tostring(math.random(100000, 999999))
+
+    state.requestId = requestId
+    state.requestedAt = now
+    state.whisperTarget = target
+
+    -- Send a direct version verify request before whispering (prevents false positives)
+    comms:SendMessage(MSG_TYPE.VERREQ, {
+        requestId = requestId,
+        requester = UnitName("player"),
+        requesterVersion = const.ADDON_VERSION or "0.0.0",
+        protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
+        timestamp = now,
+    }, "WHISPER", target)
+    self:SyncLog("VersionNudge: sent VERREQ to %s (short=%s requestId=%s)", tostring(target), tostring(shortName), tostring(requestId))
+
+    -- Timeout cleanup if they never respond (no addon / blocked comms)
+    state.verifyTimer = C_Timer.NewTimer(8, function()
+        local s = self.pendingVersionChecks[shortName]
+        if s and s.requestId == requestId then
+            self:SyncLog("VersionNudge: VERRESP timeout for %s (requestId=%s)", tostring(shortName), tostring(requestId))
+            self.pendingVersionChecks[shortName] = nil
+        end
+    end)
+
+    self.pendingVersionChecks[shortName] = state
+end
+
+function guildSync:OnVersionRequest(data)
+    if not data then return end
+    if not self:IsProtocolCompatible(data) then return end
+
+    local comms = Private.CommsUtils
+    if not comms then return end
+
+    local sender = data.sender
+    if not sender or sender == "" then return end
+
+    self:SyncLog("VersionNudge: received VERREQ from %s (requestId=%s)", tostring(sender), tostring(data.requestId))
+    comms:SendMessage(MSG_TYPE.VERRESP, {
+        requestId = data.requestId,
+        version = const.ADDON_VERSION or "0.0.0",
+        protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
+        timestamp = time(),
+    }, "WHISPER", sender)
+end
+
+function guildSync:OnVersionResponse(data)
+    if not data then return end
+    if not self:IsProtocolCompatible(data) then return end
+
+    local senderShort = self:ShortNameFromSender(data.sender) or nil
+    if not senderShort or senderShort == "" then return end
+
+    local state = self.pendingVersionChecks[senderShort]
+    if not state or not state.requestId then return end
+    if data.requestId and data.requestId ~= state.requestId then return end
+
+    self:SyncLog("VersionNudge: received VERRESP from %s (v=%s requestId=%s)", tostring(senderShort), tostring(data.version), tostring(data.requestId))
+
+    local now = time()
+    if self:IsNotifySuppressed(senderShort, now) then
+        self:CancelPendingVersionCheck(senderShort)
+        return
+    end
+
+    -- Verify again using the responder's own version (avoid HELLO false positives)
+    local newer = self:IsMyVersionNewerThan(data.version)
+    if newer ~= true then
+        self:SyncLog("VersionNudge: not whispering %s (theirVersion=%s newer=%s)", tostring(senderShort), tostring(data.version), tostring(newer))
+        self:CancelPendingVersionCheck(senderShort)
+        return
+    end
+
+    local comms = Private.CommsUtils
+    if not comms then
+        self:CancelPendingVersionCheck(senderShort)
+        return
+    end
+
+    local myVersion = const.ADDON_VERSION or "0.0.0"
+    local theirVersion = data.version or "?"
+    local target = state.whisperTarget or senderShort
+
+    -- Mark + broadcast first to minimize duplicate whispers from other clients
+    self:MarkNotified(senderShort, now)
+    comms:SendMessage(MSG_TYPE.VERNOTIFIED, {
+        targetName = senderShort,
+        notifiedAt = now,
+        by = UnitName("player"),
+        myVersion = myVersion,
+        theirVersion = theirVersion,
+        protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
+        timestamp = now,
+    }, "GUILD")
+
+    -- Send the actual whisper (chat), once per day per target
+    if type(SendChatMessage) == "function" then
+        local msg = string.format(
+            "Reckoning: Outdated addon (you: %s, latest: %s). Update: https://www.curseforge.com/wow/addons/reckoning",
+            tostring(theirVersion),
+            tostring(myVersion)
+        )
+        SendChatMessage(msg, "WHISPER", nil, target)
+        self:SyncLog("VersionNudge: whisper sent to %s (their=%s mine=%s)", tostring(senderShort), tostring(theirVersion), tostring(myVersion))
+    end
+
+    self:SaveCachedData()
+    self:CancelPendingVersionCheck(senderShort)
+end
+
+function guildSync:OnVersionNotified(data)
+    if not data or not data.targetName then return end
+    if not self:IsProtocolCompatible(data) then return end
+
+    local targetShort = data.targetName
+    local notifiedAt = tonumber(data.notifiedAt) or time()
+
+    self:MarkNotified(targetShort, notifiedAt)
+    self:CancelPendingVersionCheck(targetShort)
+    self:SaveCachedData()
 end
 
 function guildSync:OnSyncRequest(data)
@@ -472,6 +884,7 @@ function guildSync:OnSyncRequest(data)
 
     -- Send our data (random delay to prevent everyone responding at once)
     local delay = math.random(1, 5)
+    self:SyncLog("SYNC_REQUEST received from %s (requestId=%s). Responding in %ds", tostring(requester), tostring(requestId), delay)
     C_Timer.After(delay, function()
         self:SendSyncResponse(requester, requestId)
     end)
@@ -521,6 +934,11 @@ function guildSync:SendSyncResponse(targetPlayer, requestId)
     local encoded = comms:Encode(singlePayload)
     if encoded and #encoded <= 255 then
         comms:SendEncodedMessage(MSG_TYPE.SYNC_RESPONSE, encoded, "GUILD", nil, "NORMAL")
+        self:SyncLog("SYNC_RESPONSE sent (single) completions=%d points=%d requestId=%s", (function()
+            local c = 0
+            for _ in pairs(completions or {}) do c = c + 1 end
+            return c
+        end)(), tonumber(totalPoints or 0) or 0, tostring(requestId or ""))
     else
         self:SendSyncResponseChunked(myData, requestId)
     end
@@ -549,6 +967,7 @@ function guildSync:SendSyncResponseChunked(myData, requestId)
     local seq = 1
     local idx = 1
     local targetChannel = "GUILD"
+    local chunksSent = 0
 
     -- Start with a reasonable batch size and shrink if encoding exceeds message limit.
     local batchSize = 60
@@ -605,6 +1024,7 @@ function guildSync:SendSyncResponseChunked(myData, requestId)
         end
 
         comms:SendEncodedMessage(MSG_TYPE.SYNC_CHUNK, encoded, targetChannel, nil, "BULK")
+        chunksSent = chunksSent + 1
 
         idx = idx + take
         seq = seq + 1
@@ -633,8 +1053,16 @@ function guildSync:SendSyncResponseChunked(myData, requestId)
         local encoded = comms:Encode(payload)
         if encoded and #encoded <= 255 then
             comms:SendEncodedMessage(MSG_TYPE.SYNC_CHUNK, encoded, targetChannel, nil, "BULK")
+            chunksSent = chunksSent + 1
         end
     end
+
+    self:SyncLog(
+        "SYNC_RESPONSE sent (chunked) completions=%d chunks=%d requestId=%s",
+        tonumber(total or 0) or 0,
+        tonumber(chunksSent or 0) or 0,
+        tostring(requestId or "")
+    )
 end
 
 function guildSync:OnSyncResponse(data)
@@ -684,6 +1112,14 @@ function guildSync:OnSyncResponse(data)
     if debugUtils then
         debugUtils:Log("GUILD", "Processed sync response from %s", data.sender or "unknown")
     end
+
+    local comps = data.myData and data.myData.completions
+    local compCount = 0
+    if type(comps) == "table" then
+        for _ in pairs(comps) do compCount = compCount + 1 end
+    end
+    local who = (data.myData and data.myData.name) or (self:ShortNameFromSender(data.sender)) or "unknown"
+    self:SyncLog("SYNC_RESPONSE received from %s (single) completions=%d", tostring(who), tonumber(compCount or 0) or 0)
 end
 
 function guildSync:OnSyncChunk(data)
@@ -724,6 +1160,19 @@ function guildSync:OnSyncChunk(data)
         state.lastSeq = seq
     end
 
+    local sliceCount = 0
+    if data.myData and type(data.myData.completions) == "table" then
+        for _ in pairs(data.myData.completions) do sliceCount = sliceCount + 1 end
+    end
+    self:SyncLog(
+        "SYNC_CHUNK received from %s requestId=%s seq=%d%s slice=%d",
+        tostring(senderShort),
+        tostring(requestId),
+        tonumber(seq) or 0,
+        data.isLast and " (last)" or "",
+        tonumber(sliceCount) or 0
+    )
+
     -- Merge the partial member data
     self:MergeMemberData(data.myData)
 
@@ -761,6 +1210,8 @@ function guildSync:OnSyncChunk(data)
 
         self:SaveCachedData()
         self:NotifyUIUpdate()
+
+        self:SyncLog("SYNC_CHUNK completed from %s requestId=%s totalChunks=%d", tostring(senderShort), tostring(requestId), tonumber(state.lastSeq) or 0)
     end
 end
 
@@ -802,6 +1253,8 @@ function guildSync:OnCompletionReceived(data)
         local achievement = Private.AchievementUtils:GetAchievement(data.achievementId)
         debugUtils:Log("GUILD", "%s completed: %s", senderShort, achievement and achievement.name or "Unknown")
     end
+
+    self:SyncLog("COMPLETION received: %s achievementId=%s", tostring(senderShort), tostring(data.achievementId))
 end
 
 function guildSync:OnHeartbeat(data)
@@ -827,6 +1280,16 @@ function guildSync:OnHeartbeat(data)
 
     self:SaveCachedData()
     self:NotifyUIUpdate()
+
+    -- Heartbeats can be noisy; only log occasionally per sender.
+    self._showLogsLastHeartbeat = self._showLogsLastHeartbeat or {}
+    local last = self._showLogsLastHeartbeat[senderShort] or 0
+    if (now - last) >= 10 then
+        self._showLogsLastHeartbeat[senderShort] = now
+        local sliceCount = 0
+        for _ in pairs(data.myData.completions or {}) do sliceCount = sliceCount + 1 end
+        self:SyncLog("HEARTBEAT received from %s slice=%d", tostring(senderShort), tonumber(sliceCount) or 0)
+    end
 end
 
 function guildSync:OnRosterRequest(data)
@@ -914,6 +1377,11 @@ function guildSync:MergeMemberData(newData)
             end
         end
     end
+
+    -- If we see someone with a newer version than ours, remind (throttled)
+    if name ~= UnitName("player") then
+        self:MaybePrintSelfUpdateReminder(newData.version or (existing and existing.version), name)
+    end
 end
 
 function guildSync:UpdateMemberInfo(name, info)
@@ -941,6 +1409,11 @@ function guildSync:UpdateMemberInfo(name, info)
                 existing.totalPoints = info.totalPoints
             end
         end
+    end
+
+    -- If we see someone with a newer version than ours, remind (throttled)
+    if name ~= UnitName("player") then
+        self:MaybePrintSelfUpdateReminder(info and info.version, name)
     end
 end
 

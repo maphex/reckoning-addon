@@ -453,7 +453,7 @@
 
     <!-- Guild Roster Row Template -->
     <Button name="ReckoningGuildRosterButtonTemplate" virtual="true">
-        <Size x="460" y="20"/>
+        <Size x="520" y="20"/>
     </Button>
 
     <!-- Guild Event Button Template -->
@@ -1484,6 +1484,33 @@
                                                     </Anchors>
                                                 </ButtonText>
                                             </Button>
+                                            <!-- Show Logs Toggle (for guild sync debugging) -->
+                                            <CheckButton name="$parentShowLogsToggle" parentKey="ShowLogsToggle" inherits="UICheckButtonTemplate">
+                                                <Size x="20" y="20"/>
+                                                <Anchors>
+                                                    <Anchor point="RIGHT" relativeTo="$parentSyncButton" relativePoint="LEFT" x="-10" y="0"/>
+                                                </Anchors>
+                                                <Scripts>
+                                                    <OnLoad>
+                                                        self.Text:SetText("Show logs")
+                                                        self.Text:ClearAllPoints()
+                                                        self.Text:SetPoint("RIGHT", self, "LEFT", -2, 0)
+                                                        ReckoningGuildFrame_InitShowLogsToggle(self)
+                                                    </OnLoad>
+                                                    <OnClick>
+                                                        ReckoningGuildFrame_ToggleShowLogs(self)
+                                                        PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+                                                    </OnClick>
+                                                    <OnEnter>
+                                                        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                                                        GameTooltip:SetText("When enabled, prints detailed guild sync logs to chat for debugging.", nil, nil, nil, nil, true)
+                                                        GameTooltip:Show()
+                                                    </OnEnter>
+                                                    <OnLeave>
+                                                        GameTooltip:Hide()
+                                                    </OnLeave>
+                                                </Scripts>
+                                            </CheckButton>
                                         </Frames>
                                     </Frame>
                                     <!-- Empty State (shown when no events) -->
@@ -1609,10 +1636,38 @@
                                                     </OnLeave>
                                                 </Scripts>
                                             </Button>
+                                            <Button parentKey="PointsHeader">
+                                                <Size x="70" y="24"/>
+                                                <Anchors>
+                                                    <Anchor point="LEFT" x="250" y="0"/>
+                                                </Anchors>
+                                                <Layers>
+                                                    <Layer level="ARTWORK">
+                                                        <FontString parentKey="Text" inherits="GameFontNormalSmall" text="Points">
+                                                            <Anchors>
+                                                                <Anchor point="LEFT" x="0" y="0"/>
+                                                            </Anchors>
+                                                            <Color r="1" g="0.82" b="0"/>
+                                                        </FontString>
+                                                    </Layer>
+                                                </Layers>
+                                                <Scripts>
+                                                    <OnClick>
+                                                        ReckoningGuildRoster_SortBy(self:GetParent():GetParent(), "points")
+                                                        PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+                                                    </OnClick>
+                                                    <OnEnter>
+                                                        self.Text:SetTextColor(1, 1, 1)
+                                                    </OnEnter>
+                                                    <OnLeave>
+                                                        self.Text:SetTextColor(1, 0.82, 0)
+                                                    </OnLeave>
+                                                </Scripts>
+                                            </Button>
                                             <Button parentKey="VersionHeader">
                                                 <Size x="90" y="24"/>
                                                 <Anchors>
-                                                    <Anchor point="LEFT" x="260" y="0"/>
+                                                    <Anchor point="LEFT" x="330" y="0"/>
                                                 </Anchors>
                                                 <Layers>
                                                     <Layer level="ARTWORK">
@@ -1640,7 +1695,7 @@
                                             <Button parentKey="StatusHeader">
                                                 <Size x="100" y="24"/>
                                                 <Anchors>
-                                                    <Anchor point="LEFT" x="360" y="0"/>
+                                                    <Anchor point="LEFT" x="420" y="0"/>
                                                 </Anchors>
                                                 <Layers>
                                                     <Layer level="ARTWORK">
