@@ -40,6 +40,7 @@ local Enums = Private.Enums
 ---| "CREATURE_KILLED"
 ---| "FALL_SURVIVED"
 ---| "PRIMAL_LOOTED"
+---| "ITEM_LOOTED"
 ---| "TREASURE_CHEST_LOOTED"
 ---| "PLAYER_DIED"
 ---| "WEEKLY_RESET"
@@ -1376,6 +1377,16 @@ function eventBridge:HandleLootMessage(message)
         local quantity = tonumber(message:match("|h|r%s*[xX](%d+)")) or 1
 
         if itemId then
+            -- Generic item looted (currently used for specific achievement triggers)
+            if itemName then
+                self:Fire("ITEM_LOOTED", {
+                    itemId = itemId,
+                    itemName = itemName,
+                    quantity = quantity,
+                    zone = GetZoneText() or "Unknown",
+                })
+            end
+
             -- Check if it's a fish and we were fishing
             if TBC_FISH[itemId] or (self.fishingState.isFishing and GetTime() - (self.fishingState.castTime or 0) < 30) then
                 self:Fire("FISH_CAUGHT", {

@@ -1626,14 +1626,14 @@ local ACHIEVEMENTS = {
 	{
 		id = 5034,
 		name = "That's Hot",
-		description = "Reach 1200 Gold (enough for a Gigantique Bag!)",
+		description = "Loot a Gigantique Bag",
 		points = 10,
 		category = 5,
 		icon = 133660,
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
-			event = "GOLD_MILESTONE",
-			conditions = { amount = function(g) return g >= 1200 end }
+			event = "ITEM_LOOTED",
+			conditions = { itemName = "Gigantique Bag" }
 		}
 	},
 	{
