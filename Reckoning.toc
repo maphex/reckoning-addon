@@ -1,5 +1,5 @@
 ## Interface: 20505 120000
-## Version: 0.0.3
+## Version: @project-version@
 ## Title: Reckoning
 ## Author: Rasu | Larsj_02
 ## DefaultState: enabled
