@@ -133,6 +133,7 @@ end
 function addon:OnInitialize(...)
     Private.SettingsUtils:Init()
     Private.CommsUtils:Init()
+    Private.UnitCache:Init()
     Private.CommandUtils:Init()
     Private.EventBridge:Init()
     Private.AchievementEngine:Init()

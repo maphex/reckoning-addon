@@ -216,7 +216,7 @@ function debugCommands:OnSetWeekCommand(args)
     local week = tonumber(args[1])
     if week then
         Private.AchievementUtils:SetCurrentWeek(week)
-        Private.Addon.CharDatabase.currentWeek = week
+        Private.Addon.Database.currentWeek = week
         Private.Addon:Print("Set current week to: " .. week)
     else
         Private.Addon:Print("Invalid week number")
@@ -226,11 +226,11 @@ end
 function debugCommands:OnResetProgressCommand(args)
     local addon = Private.Addon
 
-    if addon.CharDatabase then
-        addon.CharDatabase.achievementProgress = {}
-        addon.CharDatabase.criteriaProgress = {}
-        addon.CharDatabase.completedAchievements = {}
-        addon.CharDatabase.completedTimestamps = {}
+    if addon.Database then
+        addon.Database.achievementProgress = {}
+        addon.Database.criteriaProgress = {}
+        addon.Database.completedAchievements = {}
+        addon.Database.completedTimestamps = {}
 
         Private.AchievementEngine.progressData = {}
         Private.AchievementEngine.criteriaProgress = {}

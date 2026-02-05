@@ -846,8 +846,8 @@ function eventBridge:HandleCombatLog(...)
             end
 
             self:Fire("PVP_KILLING_BLOW", {
-                victimClass = self:GetClassFromGUID(destGUID),
-                victimLevel = self:GetLevelFromGUID(destGUID),  -- Not reliably available from GUID in TBC
+                victimClass = Private.UnitCache:GetClassByGUID(destGUID),
+                victimLevel = Private.UnitCache:GetLevelByGUID(destGUID),
                 location = GetZoneText() or "Unknown",
                 targetType = targetType,
             })
@@ -857,7 +857,9 @@ function eventBridge:HandleCombatLog(...)
 
             self:Fire("CREATURE_KILLED", {
                 creatureName = destName,
-                level = 0,  -- Level not available from GUID in TBC
+                creatureId = npcId,
+                level = Private.UnitCache:GetLevelByGUID(destGUID),
+                creatureType = Private.UnitCache:GetCreatureTypeByGUID(destGUID),
             })
         end
     end
@@ -892,8 +894,8 @@ function eventBridge:HandleCombatLog(...)
 
             local isKillingBlow = (sourceGUID == playerGUID)
             self:Fire("PVP_KILL", {
-                victimClass = self:GetClassFromGUID(destGUID),
-                victimLevel = nil,  -- Not reliably available from GUID in TBC
+                victimClass = Private.UnitCache:GetClassByGUID(destGUID),
+                victimLevel = Private.UnitCache:GetLevelByGUID(destGUID),
                 location = GetZoneText() or "Unknown",
                 isKillingBlow = isKillingBlow,
                 totalKills = self.pvpState.kills,
@@ -973,41 +975,6 @@ function eventBridge:GetNpcIdFromGUID(guid)
     return nil
 end
 
-
-local CLASS_NAME_TO_ENUM = {}
-for i = 1, GetNumClasses() do
-    local className = GetClassInfo(i)
-    CLASS_NAME_TO_ENUM[className] = i
-end
-
----Get class enum from player GUID (TBC-compatible)
----@param guid string
----@return Enums.Class|nil
-function eventBridge:GetClassFromGUID(guid)
-    -- Best-effort: use current target when it matches the GUID
-    if type(UnitGUID) ~= "function" or type(UnitClass) ~= "function" then
-        return nil
-    end
-
-    if UnitGUID("target") == guid then
-        local _, classFile = UnitClass("target")
-        return classFile
-    end
-
-    return nil
-end
-
---- Get level from player GUID (TBC-compatible)
----@param guid WOWGUID
----@return number
-function eventBridge:GetLevelFromGUID(guid)
-    local unit = UnitTokenFromGUID(guid)
-    if unit then
-        return UnitLevel(unit)
-    end
-    return 0
-end
-
 ---Get group size (TBC-compatible)
 ---@return number
 function eventBridge:GetGroupSize()
@@ -1053,17 +1020,8 @@ end
 -------------------------------------------------------------------------------
 
 function eventBridge:HandleQuestTurnedIn(questId, xpReward, moneyReward)
-    -- TBC might not have C_QuestLog, use fallback
-    local questTitle = "Unknown Quest"
-    if C_QuestLog and C_QuestLog.GetTitleForQuestID then
-        questTitle = C_QuestLog.GetTitleForQuestID(questId) or questTitle
-    end
-
-    -- Check if it's a daily quest (TBC: QuestIsDaily may not exist, default false)
-    local isDaily = false
-    if QuestIsDaily then
-        isDaily = QuestIsDaily()
-    end
+    local questTitle = QuestUtils_GetQuestName(questId) or "Unknown Quest"
+    local isDaily = Private.constants.DAILY_QUESTS[questId] or false
 
     self:Fire("QUEST_COMPLETED", {
         questId = questId,
@@ -1442,7 +1400,6 @@ function eventBridge:HandleLootMessage(message)
                     fishId = itemId,
                     fishName = itemName,
                     zone = GetZoneText() or "Unknown",
-                    poolType = self.fishingState.poolType or Enums.FishPoolType.OpenWater,  -- TODO: detect school vs open water if needed
                 })
                 self.fishingState.isFishing = false
             end
@@ -1998,7 +1955,7 @@ function eventBridge:HandleSystemMessage(message)
                 tokenType = tokenName,
                 tokenId = tokenId,
                 count = 1,
-                totalCount = 0,  -- TODO: use GetItemCount(tokenId) if available for this client
+                totalCount = GetItemCount(tokenId),
             })
             break
         end

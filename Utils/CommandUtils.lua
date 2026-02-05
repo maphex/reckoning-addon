@@ -180,12 +180,9 @@ function commandUtils:OnResetCommand(args)
     end
 
     local defaultDB = addon.DefaultDatabase or {}
-    local defaultCharDB = addon.DefaultCharDatabase or {}
 
     addon.Database = addon:CopyTable(defaultDB)
-    addon.CharDatabase = addon:CopyTable(defaultCharDB)
     _G["ReckoningDB"] = addon.Database
-    _G["ReckoningCharDB"] = addon.CharDatabase
 
     local engine = Private.AchievementEngine
     if engine then

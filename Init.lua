@@ -38,22 +38,11 @@ local defaultDatabase = {
     },
 }
 
--- Per-character SavedVariables (currently unused, placeholder for future)
-local defaultCharDatabase = {
-    char = {
-    },
-}
-
 ---@class Reckoning : RasuAddonBase
 local addon = LibStub("RasuAddon"):CreateAddon(
     const.ADDON_NAME,
     "ReckoningDB",
-    defaultDatabase,
-    nil,
-    nil,
-    nil,
-    "ReckoningCharDB",
-    defaultCharDatabase
+    defaultDatabase
 )
 
 Private.Addon = addon

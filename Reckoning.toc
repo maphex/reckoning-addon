@@ -4,8 +4,8 @@
 ## Author: Rasu | Larsj_02
 ## DefaultState: enabled
 ## IconTexture: Interface\Addons\Reckoning\Media\Textures\logo.tga
-## SavedVariables: ReckoningDB
-## SavedVariablesPerCharacter: ReckoningCharDB
+## SavedVariablesPerCharacter: ReckoningDB
+## X-Curse-Project-ID: 1453511
 
 #Bindings.xml
 embed.xml

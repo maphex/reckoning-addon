@@ -17,6 +17,7 @@
     -->
     <!-- <script file="DebugCommands.lua" /> -->
 
+    <script file="UnitCache.lua" />
     <script file="CommandUtils.lua" />
     <script file="AchievementUtils.lua" />
     <script file="EventBridge.lua" />
