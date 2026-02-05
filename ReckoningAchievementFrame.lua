@@ -491,9 +491,7 @@ end
 
 --- Called from XML when clicking Tickets, Actions, or Log in the Admin left panel.
 function ReckoningAdmin_SelectSubTab(frame, subTab)
-    print(string.format("[Reckoning:Admin] SelectSubTab called subTab=%s frame=%s hasAdmin=%s", tostring(subTab), tostring(frame and frame:GetName()), tostring(frame and frame.Admin and "yes" or "no")))
     if not frame or not frame.Admin then
-        print("[Reckoning:Admin] SelectSubTab early return: no frame or no frame.Admin")
         return
     end
     local admin = frame.Admin
@@ -518,21 +516,17 @@ function ReckoningAdmin_SelectSubTab(frame, subTab)
 end
 
 function ReckoningAdmin_EnsureUI(frame)
-    print("[Reckoning:Admin] EnsureUI called")
-    if not frame then print("[Reckoning:Admin] EnsureUI early return: no frame") return end
+    if not frame then return end
     -- Admin frame and left panel (Categories with Tickets/Actions buttons) come from XML.
     local admin = frame.Admin
     if not admin or not admin.Content then
-        print("[Reckoning:Admin] EnsureUI early return: no admin or no admin.Content")
         return
     end
     if admin.ScrollFrame then
-        print("[Reckoning:Admin] EnsureUI skipped: already built")
         return
     end
 
     local content = admin.Content
-    print("[Reckoning:Admin] EnsureUI building scroll frames (tickets, actions, log)...")
     admin.selectedSubTab = "tickets"
 
     local info = content:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -559,7 +553,6 @@ function ReckoningAdmin_EnsureUI(frame)
     local priv = Private or Reckoning.Private
     local ticketSync = priv and priv.TicketSyncUtils
     local isAdmin = ticketSync and ticketSync:IsAdmin() == true
-    print(string.format("[Reckoning:Admin] EnsureUI isAdmin=%s", tostring(isAdmin)))
 
     if isAdmin then
         local contentTop = 40
@@ -611,7 +604,8 @@ function ReckoningAdmin_EnsureUI(frame)
         actionsScroll:Hide()
         admin.ExpandedAchievements = admin.ExpandedAchievements or {}
         for _, btn in ipairs(actionsScroll.buttons or {}) do
-            btn:SetHeight(40)
+            -- Prevent template OnClick from capturing; let Cancel/Manage/Expand receive clicks
+            btn:SetScript("OnClick", nil)
             local expandBtn = CreateFrame("Button", nil, btn)
             expandBtn:SetSize(22, 22)
             expandBtn:SetPoint("LEFT", btn, "LEFT", 4, 0)
@@ -626,14 +620,16 @@ function ReckoningAdmin_EnsureUI(frame)
                 ReckoningAdminActions_Refresh(frame)
             end)
             btn.ExpandButton = expandBtn
+            -- Cancel: higher frame level so it stays clickable above template layers
             local cancelBtn = CreateFrame("Button", nil, btn, "UIPanelButtonTemplate")
-            cancelBtn:SetSize(50, 20)
-            cancelBtn:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
+            cancelBtn:SetSize(56, 22)
+            cancelBtn:SetPoint("RIGHT", btn, "RIGHT", -6, 0)
             cancelBtn:SetText("Cancel")
             btn.CancelButton = cancelBtn
+            -- Manage: same, so clicks register
             local manageBtn = CreateFrame("Button", nil, btn, "UIPanelButtonTemplate")
-            manageBtn:SetSize(50, 20)
-            manageBtn:SetPoint("RIGHT", cancelBtn, "LEFT", -4, 0)
+            manageBtn:SetSize(56, 22)
+            manageBtn:SetPoint("RIGHT", cancelBtn, "LEFT", -6, 0)
             manageBtn:SetText("Manage")
             btn.ManageButton = manageBtn
         end
@@ -749,12 +745,10 @@ function ReckoningAdmin_EnsureUI(frame)
         logEmpty:SetText("No log entries.")
         logEmpty:Hide()
         admin.LogEmptyState = logEmpty
-        print("[Reckoning:Admin] EnsureUI created ActionsScrollFrame and LogScrollFrame (buttons=" .. tostring(actionsScroll.buttons and #actionsScroll.buttons or 0) .. "," .. tostring(logScroll.buttons and #logScroll.buttons or 0) .. ")")
     else
         admin.ScrollFrame = nil
         admin.ActionsScrollFrame = nil
         admin.LogScrollFrame = nil
-        print("[Reckoning:Admin] EnsureUI not admin: scroll frames nil")
     end
 
     resolve:SetScript("OnClick", function()
@@ -949,8 +943,10 @@ function ReckoningAdminActions_Refresh(frame)
     local scroll = admin.ActionsScrollFrame
     scroll:SetShown(#displayList > 0)
 
-    local buttonHeight = 40
-    local totalHeight = #displayList * (buttonHeight + 4)
+    -- One row height for all: achievement rows "regular" size, action rows same so Cancel has room
+    local ROW_HEIGHT = 52
+    local ROW_GAP = 4
+    local totalHeight = #displayList * (ROW_HEIGHT + ROW_GAP)
     local offset = HybridScrollFrame_GetOffset(scroll)
     local buttons = scroll.buttons
     HybridScrollFrame_Update(scroll, totalHeight, scroll:GetHeight())
@@ -965,7 +961,16 @@ function ReckoningAdminActions_Refresh(frame)
             if btn.ManageButton then btn.ManageButton:Hide() end
             btn:Hide()
         else
-            if item.type == "group" then
+            local isGroup = (item.type == "group")
+            btn:SetHeight(ROW_HEIGHT)
+
+            -- Keep Cancel/Manage above template layers so they receive clicks
+            local baseLevel = btn:GetFrameLevel()
+            if btn.CancelButton then btn.CancelButton:SetFrameLevel(baseLevel + 10) end
+            if btn.ManageButton then btn.ManageButton:SetFrameLevel(baseLevel + 10) end
+            if btn.ExpandButton then btn.ExpandButton:SetFrameLevel(baseLevel + 10) end
+
+            if isGroup then
                 btn.ExpandButton.achievementId = item.achievementId
                 btn.ExpandButton:Show()
                 btn.ExpandButton.text:SetText((admin.ExpandedAchievements[item.achievementId] ~= false) and "▼" or "▶")
@@ -974,10 +979,11 @@ function ReckoningAdminActions_Refresh(frame)
                     btn.icon.texture:Show()
                 end
                 if btn.label then
-                    btn.label:SetText(item.name .. " (" .. #item.corrections .. ")")
+                    btn.label:SetText(item.name)
+                    btn.label:SetWidth(280)
                 end
                 if btn.description then
-                    btn.description:SetText("")
+                    btn.description:SetText(#item.corrections == 1 and "1 action" or (#item.corrections .. " actions"))
                     btn.description:Show()
                 end
                 if btn.CancelButton then btn.CancelButton:Hide() end
@@ -993,7 +999,6 @@ function ReckoningAdminActions_Refresh(frame)
                 local c = item.correction
                 if btn.ExpandButton then btn.ExpandButton:Hide() end
                 local achievement = Data and Data._achievements and Data._achievements[c.achievementId]
-                local name = achievement and achievement.name or ("Achievement #" .. tostring(c.achievementId or "?"))
                 local icon = achievement and achievement.icon or "Interface\\Icons\\INV_Misc_QuestionMark"
                 local typeLabel = (c.type == "full_invalidate" and "Invalidate (all)") or (c.type == "invalidate_from_date" and "Invalid from date") or (c.type == "revalidate" and "Revalidate") or (c.type == "reset" and "Reset") or tostring(c.type or "?")
                 local dateStr = c.issuedAt and date("%Y-%m-%d %H:%M", c.issuedAt) or ""
@@ -1009,10 +1014,11 @@ function ReckoningAdminActions_Refresh(frame)
                     btn.icon.texture:Show()
                 end
                 if btn.label then
-                    btn.label:SetText("    " .. typeLabel)
+                    btn.label:SetText("  " .. typeLabel)
+                    btn.label:SetWidth(240)
                 end
                 if btn.description then
-                    btn.description:SetText(string.format("|cffaaaaaa%s|r %s", tostring(c.issuedBy or "?"), dateStr))
+                    btn.description:SetText(string.format("|cff888888%s|r %s", tostring(c.issuedBy or "?"), dateStr))
                     btn.description:Show()
                 end
                 if btn.CancelButton then
@@ -1032,7 +1038,6 @@ function ReckoningAdminActions_Refresh(frame)
                 end
                 if btn.ManageButton then btn.ManageButton:Hide() end
             end
-            btn:SetHeight(buttonHeight)
             btn:Show()
         end
     end
@@ -1595,16 +1600,14 @@ function ReckoningAchievementFrame_SelectTab(tabNum)
         ReckoningGuildFrame_SelectSubTab(frame, "events")
     elseif tabNum == 3 then
         -- Admin tab (left: Tickets/Actions like Guild; right: content)
-        print("[Reckoning:Admin] SelectTab(3) Admin tab selected, calling EnsureUI...")
         if ReckoningAdmin_EnsureUI then
             ReckoningAdmin_EnsureUI(frame)
         end
         if frame.Admin then
             frame.Admin:Show()
-            print("[Reckoning:Admin] SelectTab(3) Admin:Show done, defaulting to tickets sub-tab")
-            ReckoningAdmin_SelectSubTab(frame, "tickets")
-        else
-            print("[Reckoning:Admin] SelectTab(3) frame.Admin is nil")
+            -- Restore last selected sub-tab so switching main tabs doesn't reset view
+            local subTab = (frame.Admin.selectedSubTab == "actions" or frame.Admin.selectedSubTab == "log") and frame.Admin.selectedSubTab or "tickets"
+            ReckoningAdmin_SelectSubTab(frame, subTab)
         end
     end
 end
@@ -2595,7 +2598,7 @@ function ReckoningAchievementManage_Show(achievementId)
         f.Title = title
 
         local y = -42
-        local function CreateListDropdown(parent, options, defaultValue, width, anchorX, anchorY)
+        local function CreateListDropdown(parent, options, defaultValue, width, anchorX, anchorY, onSelectCallback)
             width = width or 80
             local dd = CreateFrame("Frame", nil, parent, "UIDropDownMenuTemplate")
             dd:SetPoint("TOPLEFT", anchorX or 16, anchorY or 0)
@@ -2609,6 +2612,7 @@ function ReckoningAchievementManage_Show(achievementId)
                     info.func = function(_, arg1)
                         self.selectedValue = arg1
                         UIDropDownMenu_SetText(self, opt.text)
+                        if onSelectCallback then onSelectCallback() end
                     end
                     info.arg1 = opt.value
                     UIDropDownMenu_AddButton(info, level)
@@ -2622,19 +2626,69 @@ function ReckoningAchievementManage_Show(achievementId)
             end
             return dd
         end
+        local function BuilderOnSelect() if f.BuildPreviewSentence then f.BuildPreviewSentence(f) end end
 
         local typeLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         typeLabel:SetPoint("TOPLEFT", 16, y)
-        typeLabel:SetText("Action type:")
+        typeLabel:SetText("What should this action do?")
         y = y - 18
         local typeOpts = {
-            { value = "full_invalidate", text = "Invalidate (all)" },
-            { value = "invalidate_from_date", text = "Invalidate from date" },
-            { value = "revalidate", text = "Revalidate" },
-            { value = "reset", text = "Reset (before date/version)" },
+            { value = "full_invalidate", text = "Invalidate (all) – no one gets points" },
+            { value = "invalidate_from_date", text = "Invalidate from a date onward" },
+            { value = "revalidate", text = "Revalidate – require minimum addon version" },
+            { value = "reset", text = "Don't count completions that match a condition" },
         }
-        f.BuilderTypeDD = CreateListDropdown(f, typeOpts, "full_invalidate", 180, 16, y)
+        f.BuilderTypeDD = CreateListDropdown(f, typeOpts, "full_invalidate", 320, 16, y)
         y = y - 26
+
+        -- Rule preview: sentence that updates from current selections
+        local previewLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        previewLabel:SetPoint("TOPLEFT", 16, y)
+        previewLabel:SetWidth(368)
+        previewLabel:SetWordWrap(true)
+        previewLabel:SetNonSpaceWrap(false)
+        f.BuilderPreview = previewLabel
+        y = y - 32
+
+        local function BuildPreviewSentence(dialog)
+            if not dialog.BuilderPreview then return end
+            local t = dialog.BuilderTypeDD and dialog.BuilderTypeDD.selectedValue or "full_invalidate"
+            local s
+            if t == "full_invalidate" then
+                s = "This achievement will not count for anyone (no points)."
+            elseif t == "invalidate_from_date" then
+                local Y = dialog.BuilderYearDD and dialog.BuilderYearDD.selectedValue or 2026
+                local M = dialog.BuilderMonthDD and dialog.BuilderMonthDD.selectedValue or 1
+                local D = dialog.BuilderDayDD and dialog.BuilderDayDD.selectedValue or 1
+                s = string.format("Completions from %d-%02d-%02d onward will not count. Earlier completions keep their points.", Y, M, D)
+            elseif t == "revalidate" then
+                local verStr = (dialog.BuilderVersionEditBox and dialog.BuilderVersionEditBox:GetText() and dialog.BuilderVersionEditBox:GetText():match("^%s*(.-)%s*$")) or "1.0.0"
+                local maj, mn, patch = verStr:match("^(%d+)%.(%d+)%.(%d+)$") or verStr:match("^(%d+)%.(%d+)$")
+                maj = tonumber(maj) or 1
+                mn = tonumber(mn) or 0
+                patch = tonumber(patch) or 0
+                s = string.format("Only completions done with addon version at least %d.%d.%d will count.", maj, mn, patch)
+            elseif t == "reset" then
+                local Y = dialog.BuilderYearDD and dialog.BuilderYearDD.selectedValue or 2026
+                local M = dialog.BuilderMonthDD and dialog.BuilderMonthDD.selectedValue or 1
+                local D = dialog.BuilderDayDD and dialog.BuilderDayDD.selectedValue or 1
+                local verStr = (dialog.BuilderVersionEditBox and dialog.BuilderVersionEditBox:GetText() and dialog.BuilderVersionEditBox:GetText():match("^%s*(.-)%s*$")) or "0.0.0"
+                local maj, mn, patch = verStr:match("^(%d+)%.(%d+)%.(%d+)$") or verStr:match("^(%d+)%.(%d+)$")
+                maj = tonumber(maj) or 0
+                mn = tonumber(mn) or 0
+                patch = tonumber(patch) or 0
+                local mode = (dialog.BuilderModeDD and dialog.BuilderModeDD.selectedValue) or "points"
+                local datePart = string.format("completed before %d-%02d-%02d", Y, M, D)
+                local verPart = string.format("addon version below %d.%d.%d", maj, mn, patch)
+                local cond = datePart .. " or " .. verPart
+                local effect = (mode == "uncomplete") and "will not count and be treated as not completed" or "will not count for points"
+                s = "Completions that were " .. cond .. " " .. effect .. "."
+            else
+                s = ""
+            end
+            dialog.BuilderPreview:SetText("|cffa0a0a0" .. (s or "") .. "|r")
+        end
+        f.BuildPreviewSentence = BuildPreviewSentence
 
         local function UpdateBuilderVisibility(dialog)
             local t = dialog.BuilderTypeDD and dialog.BuilderTypeDD.selectedValue or "full_invalidate"
@@ -2646,11 +2700,10 @@ function ReckoningAchievementManage_Show(achievementId)
             if dialog.BuilderMonthDD then dialog.BuilderMonthDD:SetShown(showFromDate) end
             if dialog.BuilderDayDD then dialog.BuilderDayDD:SetShown(showFromDate) end
             if dialog.BuilderVersionLabel then dialog.BuilderVersionLabel:SetShown(showVersion) end
-            if dialog.BuilderVerMajorDD then dialog.BuilderVerMajorDD:SetShown(showVersion) end
-            if dialog.BuilderVerMinorDD then dialog.BuilderVerMinorDD:SetShown(showVersion) end
-            if dialog.BuilderVerPatchDD then dialog.BuilderVerPatchDD:SetShown(showVersion) end
+            if dialog.BuilderVersionEditBox then dialog.BuilderVersionEditBox:SetShown(showVersion) end
             if dialog.BuilderModeLabel then dialog.BuilderModeLabel:SetShown(showMode) end
             if dialog.BuilderModeDD then dialog.BuilderModeDD:SetShown(showMode) end
+            if dialog.BuildPreviewSentence then dialog.BuildPreviewSentence(dialog) end
         end
         f.UpdateBuilderVisibility = UpdateBuilderVisibility
         UIDropDownMenu_Initialize(f.BuilderTypeDD, function(self, level)
@@ -2668,9 +2721,11 @@ function ReckoningAchievementManage_Show(achievementId)
             end
         end)
 
+        y = y - 4
+        -- Inline sentence labels so the form reads as a rule
         local fromDateLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         fromDateLabel:SetPoint("TOPLEFT", 16, y)
-        fromDateLabel:SetText("From date (invalidate from date):")
+        fromDateLabel:SetText("From this date (Y/M/D):")
         f.BuilderFromDateLabel = fromDateLabel
         y = y - 18
         local yearOpts, monthOpts, dayOpts = {}, {}, {}
@@ -2680,38 +2735,36 @@ function ReckoningAchievementManage_Show(achievementId)
         local nowT = (type(date) == "function") and date("*t") or nil
         local defY, defM, defD = 2026, 1, 1
         if nowT and nowT.year then defY = math.max(2025, math.min(2031, nowT.year)) defM = nowT.month or 1 defD = nowT.day or 1 end
-        f.BuilderYearDD = CreateListDropdown(f, yearOpts, defY, 58, 16, y)
-        f.BuilderMonthDD = CreateListDropdown(f, monthOpts, defM, 45, 80, y)
-        f.BuilderDayDD = CreateListDropdown(f, dayOpts, defD, 45, 130, y)
+        f.BuilderYearDD = CreateListDropdown(f, yearOpts, defY, 58, 16, y, BuilderOnSelect)
+        f.BuilderMonthDD = CreateListDropdown(f, monthOpts, defM, 45, 80, y, BuilderOnSelect)
+        f.BuilderDayDD = CreateListDropdown(f, dayOpts, defD, 45, 130, y, BuilderOnSelect)
         f.BuilderFromDateRow = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         f.BuilderFromDateRow:SetPoint("TOPLEFT", 16, y)
         y = y - 26
 
         local minVerLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         minVerLabel:SetPoint("TOPLEFT", 16, y)
-        minVerLabel:SetText("Min version (revalidate) / Before version (reset):")
+        minVerLabel:SetText("Version (type X.Y.Z, e.g. 1.2.3):")
         f.BuilderVersionLabel = minVerLabel
         y = y - 18
-        local majorOpts, minorOpts, patchOpts = {}, {}, {}
-        for n = 0, 9 do majorOpts[#majorOpts + 1] = { value = n, text = tostring(n) } end
-        for n = 0, 9 do minorOpts[#minorOpts + 1] = { value = n, text = tostring(n) } end
-        for n = 0, 99 do patchOpts[#patchOpts + 1] = { value = n, text = tostring(n) } end
-        local verStr = (Private and Private.constants and Private.constants.ADDON_VERSION) or "1.0.0"
-        local vm, vn, vp = verStr:match("^(%d+)%.(%d+)%.(%d+)$")
-        vm, vn, vp = tonumber(vm) or 1, tonumber(vn) or 0, tonumber(vp) or 0
-        f.BuilderVerMajorDD = CreateListDropdown(f, majorOpts, vm, 42, 16, y)
-        f.BuilderVerMinorDD = CreateListDropdown(f, minorOpts, vn, 42, 64, y)
-        f.BuilderVerPatchDD = CreateListDropdown(f, patchOpts, vp, 42, 112, y)
+        local versionEdit = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+        versionEdit:SetPoint("TOPLEFT", 16, y)
+        versionEdit:SetSize(120, 20)
+        versionEdit:SetAutoFocus(false)
+        versionEdit:SetMaxLetters(32)
+        versionEdit:SetScript("OnTextChanged", function() BuilderOnSelect() end)
+        versionEdit:SetScript("OnEscapePressed", function() versionEdit:ClearFocus() end)
+        f.BuilderVersionEditBox = versionEdit
         f.BuilderVersionRow = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         f.BuilderVersionRow:SetPoint("TOPLEFT", 16, y)
         y = y - 26
 
         local modeLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         modeLabel:SetPoint("TOPLEFT", 16, y)
-        modeLabel:SetText("Reset mode (points only vs uncomplete):")
+        modeLabel:SetText("Effect for matching completions:")
         f.BuilderModeLabel = modeLabel
         y = y - 18
-        f.BuilderModeDD = CreateListDropdown(f, { { value = "points", text = "Points only" }, { value = "uncomplete", text = "Uncomplete (virtual)" } }, "points", 120, 16, y)
+        f.BuilderModeDD = CreateListDropdown(f, { { value = "points", text = "Points only – don't count" }, { value = "uncomplete", text = "Treat as not completed (virtual)" } }, "points", 200, 16, y, BuilderOnSelect)
         f.BuilderModeRow = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         f.BuilderModeRow:SetPoint("TOPLEFT", 16, y)
         y = y - 28
@@ -2732,10 +2785,9 @@ function ReckoningAchievementManage_Show(achievementId)
                 local ok, ts = pcall(function() return time({ year = Y, month = M, day = D, hour = 12, min = 0, sec = 0 }) end)
                 opts.fromDate = (ok and ts and ts > 0) and ts or time()
             elseif t == "revalidate" then
-                local maj = f.BuilderVerMajorDD and f.BuilderVerMajorDD.selectedValue
-                local mn = f.BuilderVerMinorDD and f.BuilderVerMinorDD.selectedValue
-                local patch = f.BuilderVerPatchDD and f.BuilderVerPatchDD.selectedValue
-                opts.addonVersion = string.format("%d.%d.%d", maj or 1, mn or 0, patch or 0)
+                local verText = (f.BuilderVersionEditBox and f.BuilderVersionEditBox:GetText() and f.BuilderVersionEditBox:GetText():match("^%s*(.-)%s*$")) or "1.0.0"
+                local maj, mn, patch = verText:match("^(%d+)%.(%d+)%.(%d+)$") or verText:match("^(%d+)%.(%d+)$")
+                opts.addonVersion = string.format("%d.%d.%d", tonumber(maj) or 1, tonumber(mn) or 0, tonumber(patch) or 0)
                 opts.effectiveAt = time()
             elseif t == "reset" then
                 local Y = f.BuilderYearDD and f.BuilderYearDD.selectedValue or 2026
@@ -2743,11 +2795,10 @@ function ReckoningAchievementManage_Show(achievementId)
                 local D = f.BuilderDayDD and f.BuilderDayDD.selectedValue or 1
                 local ok, ts = pcall(function() return time({ year = Y, month = M, day = D, hour = 0, min = 0, sec = 0 }) end)
                 if ok and ts and ts > 0 then opts.beforeDate = ts end
-                local maj = f.BuilderVerMajorDD and f.BuilderVerMajorDD.selectedValue
-                local mn = f.BuilderVerMinorDD and f.BuilderVerMinorDD.selectedValue
-                local patch = f.BuilderVerPatchDD and f.BuilderVerPatchDD.selectedValue
-                if maj ~= nil or (mn ~= nil and mn ~= 0) or (patch ~= nil and patch ~= 0) then
-                    opts.beforeVersion = string.format("%d.%d.%d", maj or 0, mn or 0, patch or 0)
+                local verText = (f.BuilderVersionEditBox and f.BuilderVersionEditBox:GetText() and f.BuilderVersionEditBox:GetText():match("^%s*(.-)%s*$")) or ""
+                local maj, mn, patch = verText:match("^(%d+)%.(%d+)%.(%d+)$") or verText:match("^(%d+)%.(%d+)$")
+                if maj or mn or patch then
+                    opts.beforeVersion = string.format("%d.%d.%d", tonumber(maj) or 0, tonumber(mn) or 0, tonumber(patch) or 0)
                 end
                 opts.mode = (f.BuilderModeDD and f.BuilderModeDD.selectedValue) or "points"
             end
@@ -2857,12 +2908,8 @@ function ReckoningAchievementManage_Show(achievementId)
         f.BuilderDayDD:SetSelectedValue(da)
     end
     local verStr = (Private and Private.constants and Private.constants.ADDON_VERSION) or "1.0.0"
-    local vm, vn, vp = verStr:match("^(%d+)%.(%d+)%.(%d+)$")
-    vm, vn, vp = tonumber(vm) or 1, tonumber(vn) or 0, tonumber(vp) or 0
-    if f.BuilderVerMajorDD and f.BuilderVerMinorDD and f.BuilderVerPatchDD then
-        f.BuilderVerMajorDD:SetSelectedValue(vm)
-        f.BuilderVerMinorDD:SetSelectedValue(vn)
-        f.BuilderVerPatchDD:SetSelectedValue(vp)
+    if f.BuilderVersionEditBox then
+        f.BuilderVersionEditBox:SetText(verStr)
     end
     ReckoningAchievementManage_RefreshPendingList(f)
     if f.UpdateBuilderVisibility then f.UpdateBuilderVisibility(f) end

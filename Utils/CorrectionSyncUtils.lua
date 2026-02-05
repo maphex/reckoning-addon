@@ -284,16 +284,12 @@ function correctionSync:CreateCorrection(achievementId, correctionType, opts)
         if t then t.revertedByCorrectionId = id end
     end
     self:SaveCachedCorrections()
-    local n = 0
-    for _ in pairs(self.corrections or {}) do n = n + 1 end
-    print(string.format("[Reckoning:Correction] CreateCorrection done: id=%s type=%s achievementId=%s total corrections=%d", tostring(id), tostring(correctionType), tostring(achievementId), n))
     return correction
 end
 
 ---@param correction AchievementCorrection
 function correctionSync:BroadcastCorrection(correction)
     if not correction or type(correction.id) ~= "string" then return end
-    print(string.format("[Reckoning:Correction] BroadcastCorrection: id=%s", tostring(correction.id)))
     self:SendGuildMessage(MSG_TYPE.CREATE, { correction = correction }, "NORMAL")
 end
 
