@@ -1377,7 +1377,7 @@ function eventBridge:HandleLootMessage(message)
 
     -- Parse loot message for item
     -- Pattern: "You receive loot: |cff...|Hitem:ITEMID:...|h[Item Name]|h|r"
-    local itemLink = message:match("|c%x+|Hitem:.-|h%[.-%]|h|r")
+    local itemLink = message:match("You receive loot: (|c%x+|Hitem:.-|h%[.-%]|h|r)")
     if itemLink then
         local itemId = tonumber(itemLink:match("item:(%d+)"))
         local itemName = itemLink:match("%[(.-)%]")
