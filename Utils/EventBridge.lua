@@ -1132,7 +1132,6 @@ local TBC_KEYS = {
     [24490] = { name = "The Master's Key", keyType = 2 },      -- Karazhan
     [32649] = { name = "Medallion of Karabor", keyType = 2 },  -- Black Temple
     [31704] = { name = "The Tempest Key", keyType = 2 },       -- Tempest Keep
-    [25463] = { name = "Shadowy Key", keyType = 2 },           -- Shadow Labyrinth
     [27991] = { name = "Shadow Labyrinth Key", keyType = 2 },  -- Shadow Labyrinth
 }
 
