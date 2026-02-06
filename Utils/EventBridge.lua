@@ -925,7 +925,7 @@ function eventBridge:HandleBossDeath(npcId, bossData, bossName)
     self:Fire("DUNGEON_BOSS_KILLED", {
         bossName = bossData.name,
         bossId = npcId,
-        instance = self.dungeonState.instanceName or bossData.instance,
+        instance = bossData.instance or self.dungeonState.instanceName,
         instanceId = self.dungeonState.instanceId or 0,
         difficulty = self.dungeonState.difficulty or Enums.Difficulty.Normal,
         duration = duration,
@@ -942,7 +942,7 @@ function eventBridge:HandleBossDeath(npcId, bossData, bossName)
     if bossData.isFinalBoss then
         local totalDuration = GetTime() - (self.dungeonState.startTime or GetTime())
 
-        local instanceName = self.dungeonState.instanceName or bossData.instance
+        local instanceName = bossData.instance or self.dungeonState.instanceName
         local totalDeaths = self.dungeonState.totalDeaths
         self:Fire("DUNGEON_CLEARED", {
             instance = instanceName,
