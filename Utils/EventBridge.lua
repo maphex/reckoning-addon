@@ -278,7 +278,7 @@ function eventBridge:Init()
     self:RegisterWowEvent("TRADE_SKILL_UPDATE")
     self:RegisterWowEvent("CHAT_MSG_SKILL")
     self:RegisterWowEvent("CHAT_MSG_SYSTEM")
-    self:RegisterWowEvent("CHAT_MSG_EMOTE")
+    self:RegisterWowEvent("CHAT_MSG_TEXT_EMOTE")
     self:RegisterWowEvent("CHAT_MSG_BG_SYSTEM_ALLIANCE")
     self:RegisterWowEvent("CHAT_MSG_BG_SYSTEM_HORDE")
     self:RegisterWowEvent("CHAT_MSG_BG_SYSTEM_NEUTRAL")
@@ -460,8 +460,8 @@ function eventBridge:OnWowEvent(event, ...)
         self:HandleSkillMessage(...)
     elseif event == "CHAT_MSG_SYSTEM" then
         self:HandleSystemMessage(...)
-    elseif event == "CHAT_MSG_EMOTE" then
-        self:HandleEmote(...)
+    elseif event == "CHAT_MSG_TEXT_EMOTE" then
+        self:HandlePlayerEmote(...)
     elseif event == "CHAT_MSG_BG_SYSTEM_ALLIANCE" or event == "CHAT_MSG_BG_SYSTEM_HORDE" or event == "CHAT_MSG_BG_SYSTEM_NEUTRAL" then
         self:HandleBGSystemMessage(...)
     elseif event == "ARENA_TEAM_UPDATE" or event == "ARENA_TEAM_ROSTER_UPDATE" then
@@ -1962,14 +1962,16 @@ function eventBridge:HandleSystemMessage(message)
     end
 end
 
-function eventBridge:HandleEmote(message)
+function eventBridge:HandlePlayerEmote(message)
     if not message then return end
 
-    -- CHAT_MSG_EMOTE format: "PlayerName roars." or similar
-    -- We need to detect which emote was used and check the target
+    -- CHAT_MSG_TEXT_EMOTE format: "You roar." or similar (player's own emotes)
+    local lowerMessage = message:lower()
+
+    -- Only process if the message starts with "you " (your own emotes)
+    if not lowerMessage:find("^you ") then return end
 
     local emoteType = nil
-    local lowerMessage = message:lower()
 
     -- Detect emote type from message
     if lowerMessage:find("roar") then
