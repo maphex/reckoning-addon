@@ -853,7 +853,7 @@ local ACHIEVEMENTS = {
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = {
-				bossName = "Vazruden the Herald",
+				bossName = "Vazruden",
 				instance = "Hellfire Ramparts",
 				difficulty = Enums.Difficulty.Heroic
 			}
@@ -1109,7 +1109,7 @@ local ACHIEVEMENTS = {
 		trigger = {
 			event = "DUNGEON_BOSS_KILLED",
 			conditions = {
-				bossName = "Vazruden the Herald",
+				bossName = "Vazruden",
 				instance = "Hellfire Ramparts",
 				difficulty = Enums.Difficulty.Normal
 			}
