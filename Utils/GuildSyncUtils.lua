@@ -279,6 +279,7 @@ local MSG_TYPE = {
     VERREQ = "GSYNC_VERREQ",          -- Version verify request (WHISPER)
     VERRESP = "GSYNC_VERRESP",        -- Version verify response (WHISPER)
     VERNOTIFIED = "GSYNC_VERNFY",     -- Someone already notified (GUILD)
+    VERREMIND = "GSYNC_VERRMD",       -- Targeted reminder (GUILD; receiver prints locally)
     ROSTER_REQUEST = "GSYNC_ROSTER",  -- Request roster info
     ROSTER_RESPONSE = "GSYNC_RDATA",  -- Roster data response
 }
@@ -349,6 +350,10 @@ function guildSync:RegisterMessageHandlers()
         self:OnVersionNotified(data)
     end)
 
+    comms:AddCallback(MSG_TYPE.VERREMIND, function(data)
+        self:OnVersionRemind(data)
+    end)
+
     comms:AddCallback(MSG_TYPE.ROSTER_REQUEST, function(data)
         self:OnRosterRequest(data)
     end)
@@ -395,13 +400,14 @@ function guildSync:SaveCachedData()
     local addon = Private.Addon
     if not addon or not addon.Database then return end
 
-    addon.Database.guildCache = {
-        members = self.memberData,
-        events = self.recentEvents,
-        versionNotifyCooldown = self.versionNotifyCooldown,
-        selfUpdateReminderLastAt = self.selfUpdateReminderLastAt,
-        savedAt = time(),
-    }
+    -- IMPORTANT: do not clobber other guildCache fields (tickets, corrections, etc.)
+    local cache = addon.Database.guildCache or {}
+    cache.members = self.memberData
+    cache.events = self.recentEvents
+    cache.versionNotifyCooldown = self.versionNotifyCooldown
+    cache.selfUpdateReminderLastAt = self.selfUpdateReminderLastAt
+    cache.savedAt = time()
+    addon.Database.guildCache = cache
 end
 
 function guildSync:CleanOldEvents()
@@ -860,32 +866,20 @@ function guildSync:OnVersionResponse(data)
 
     local myVersion = const.ADDON_VERSION or "0.0.0"
     local theirVersion = data.version or "?"
-    local target = state.whisperTarget or senderShort
+    local me = UnitName("player") or ""
 
-    -- Mark + broadcast first to minimize duplicate whispers from other clients
-    self:MarkNotified(senderShort, now)
-    comms:SendMessage(MSG_TYPE.VERNOTIFIED, {
+    -- Guild-wide targeted reminder. Receiver will apply 24h cooldown and print locally as a "fake whisper".
+    comms:SendMessage(MSG_TYPE.VERREMIND, {
         targetName = senderShort,
-        notifiedAt = now,
-        by = UnitName("player"),
+        by = me,
         myVersion = myVersion,
         theirVersion = theirVersion,
+        requestId = state.requestId,
         protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
         timestamp = now,
     }, "GUILD")
+    self:SyncLog("VersionNudge: sent VERREMIND for %s (by=%s their=%s mine=%s)", tostring(senderShort), tostring(me), tostring(theirVersion), tostring(myVersion))
 
-    -- Send the actual whisper (chat), once per day per target
-    if type(SendChatMessage) == "function" then
-        local msg = string.format(
-            "Reckoning: Outdated addon (you: %s, latest: %s). Update: https://www.curseforge.com/wow/addons/reckoning",
-            tostring(theirVersion),
-            tostring(myVersion)
-        )
-        SendChatMessage(msg, "WHISPER", nil, target)
-        self:SyncLog("VersionNudge: whisper sent to %s (their=%s mine=%s)", tostring(senderShort), tostring(theirVersion), tostring(myVersion))
-    end
-
-    self:SaveCachedData()
     self:CancelPendingVersionCheck(senderShort)
 end
 
@@ -899,6 +893,64 @@ function guildSync:OnVersionNotified(data)
     self:MarkNotified(targetShort, notifiedAt)
     self:CancelPendingVersionCheck(targetShort)
     self:SaveCachedData()
+end
+
+function guildSync:OnVersionRemind(data)
+    if not data or not data.targetName then return end
+    if not self:IsProtocolCompatible(data) then return end
+    if not IsInGuild() then return end
+
+    local me = UnitName("player")
+    if not me or me == "" then return end
+
+    if tostring(data.targetName) ~= tostring(me) then
+        return
+    end
+
+    local now = time()
+    if self:IsNotifySuppressed(me, now) then
+        return
+    end
+
+    local by = tostring(data.by or (self:ShortNameFromSender(data.sender) or data.sender) or "Someone")
+    local myVersion = tostring(data.myVersion or "?")
+    local theirVersion = tostring(data.theirVersion or "?")
+
+    self:MarkNotified(me, now)
+    self:SaveCachedData()
+
+    -- Broadcast suppression so the guild stops prompting for 24h.
+    local comms = Private.CommsUtils
+    if comms then
+        comms:SendMessage(MSG_TYPE.VERNOTIFIED, {
+            targetName = me,
+            notifiedAt = now,
+            by = by,
+            myVersion = myVersion,
+            theirVersion = theirVersion,
+            protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
+            timestamp = now,
+        }, "GUILD")
+    end
+
+    -- Print a "fake whisper" locally (pink whisper color).
+    local msg = string.format(
+        "Hey, just a heads up — your Reckoning addon looks outdated (you: %s, latest: %s). Update: https://www.curseforge.com/wow/addons/reckoning",
+        theirVersion,
+        myVersion
+    )
+    local prefix = string.format("[%s] whispers: ", by)
+    local color = (type(ChatTypeInfo) == "table" and ChatTypeInfo.WHISPER) or nil
+    local r = (color and color.r) or 1
+    local g = (color and color.g) or 0.5
+    local b = (color and color.b) or 1
+
+    local frame = DEFAULT_CHAT_FRAME
+    if frame and frame.AddMessage then
+        frame:AddMessage(prefix .. msg, r, g, b)
+    else
+        print(prefix .. msg)
+    end
 end
 
 function guildSync:OnSyncRequest(data)
