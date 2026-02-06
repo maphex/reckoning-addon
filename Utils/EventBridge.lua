@@ -140,7 +140,7 @@ local BOSS_DATA = {
     -- Hellfire Citadel: Hellfire Ramparts
     [17306] = { name = "Watchkeeper Gargolmar", instance = "Hellfire Ramparts", isFinalBoss = false },
     [17308] = { name = "Omor the Unscarred", instance = "Hellfire Ramparts", isFinalBoss = false },
-    [17536] = { name = "Vazruden", instance = "Hellfire Ramparts", isFinalBoss = true },
+    [17537] = { name = "Vazruden", instance = "Hellfire Ramparts", isFinalBoss = true },
 
     -- Hellfire Citadel: Blood Furnace
     [17381] = { name = "The Maker", instance = "The Blood Furnace", isFinalBoss = false },
