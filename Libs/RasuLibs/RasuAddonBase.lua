@@ -53,9 +53,9 @@ function lib:CreateAddon(name, db, defaultDB, loc, defaultLoc, ignoreError, char
     ---@class RasuAddonBase : RasuBaseMixin
     local addon = CreateFromMixins(AddonBase)
     self.RegisteredAddons[name] = addon
-    addon.Version = C_AddOns.GetAddOnMetadata(name, "Version") or "1.0.0"
+    addon.Version = (C_AddOns and C_AddOns.GetAddOnMetadata(name, "Version")) or GetAddOnMetadata(name, "Version") or "1.0.0"
     addon.Name = name
-    addon.DisplayName = C_AddOns.GetAddOnMetadata(name, "Title") or name
+    addon.DisplayName = (C_AddOns and C_AddOns.GetAddOnMetadata(name, "Title")) or GetAddOnMetadata(name, "Title") or name
     addon.Database = db
     addon.DefaultDatabase = defaultDB
     addon.CharDatabase = charDB

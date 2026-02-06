@@ -9,7 +9,7 @@ local constants = {}
 Private.constants = constants
 
 constants.ADDON_NAME = ADDON_NAME
-local rawVersion = C_AddOns and C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version")
+local rawVersion = (C_AddOns and C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version")) or GetAddOnMetadata(ADDON_NAME, "Version")
 -- Replace placeholder with "preview" for development builds
 constants.ADDON_VERSION = (rawVersion == "@project-version@" or rawVersion == nil or rawVersion == "") and "preview" or rawVersion
 constants.ADDON_MEDIA_PATH = [[Interface\AddOns\]] .. constants.ADDON_NAME .. [[\Media]]
