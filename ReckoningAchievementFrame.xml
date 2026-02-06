@@ -736,7 +736,7 @@
     </Button>
 
     <!-- Main Achievement Frame -->
-    <Frame name="ReckoningAchievementFrame" toplevel="true" parent="UIParent" frameStrata="MEDIUM" hidden="true" enableMouse="true" enableKeyboard="true" inherits="BackdropTemplate">
+    <Frame name="ReckoningAchievementFrame" toplevel="true" parent="UIParent" frameStrata="MEDIUM" hidden="true" enableMouse="true" inherits="BackdropTemplate">
         <Size x="768" y="500"/>
         <KeyValues>
             <KeyValue key="backdropInfo" value="BACKDROP_ACHIEVEMENTS_0_64" type="global"/>
@@ -1886,11 +1886,6 @@
             <OnLoad function="ReckoningAchievementFrame_OnLoad"/>
             <OnShow function="ReckoningAchievementFrame_OnShow"/>
             <OnHide function="ReckoningAchievementFrame_OnHide"/>
-            <OnKeyDown>
-                if key == "ESCAPE" or key == "Y" then
-                    self:Hide()
-                end
-            </OnKeyDown>
         </Scripts>
     </Frame>
 </Ui>

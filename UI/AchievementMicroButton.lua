@@ -4,9 +4,8 @@
 
 -- Global function for keybind
 function ToggleReckoningAchievementFrame()
-    local frame = ReckoningAchievementFrame
-    if frame then
-        frame:SetShown(not frame:IsShown())
+    if ReckoningAchievementFrame_Toggle then
+        ReckoningAchievementFrame_Toggle()
     end
 end
 

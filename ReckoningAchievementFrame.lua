@@ -1276,6 +1276,14 @@ function ReckoningAchievementFrame_Toggle()
     if not frame then
         return
     end
+
+    -- In combat, use direct Show/Hide (ShowUIPanel/HideUIPanel are protected)
+    if InCombatLockdown() then
+        frame:SetShown(not frame:IsShown())
+        return
+    end
+
+    -- Out of combat, use UIPanel system for proper ESC key handling
     if frame:IsShown() then
         if HideUIPanel then
             HideUIPanel(frame)
