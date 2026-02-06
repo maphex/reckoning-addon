@@ -4,7 +4,10 @@
 
 -- Global function for keybind
 function ToggleReckoningAchievementFrame()
-    ReckoningAchievementFrame:SetShown(not ReckoningAchievementFrame:IsShown())
+    local frame = ReckoningAchievementFrame
+    if frame then
+        frame:SetShown(not frame:IsShown())
+    end
 end
 
 function ReckoningAchievementMicroButton_OnLoad(self)
