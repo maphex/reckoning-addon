@@ -28,6 +28,8 @@ local engine = {
     lastWeek = 0,
     ---@type boolean -- Whether data has been loaded
     dataLoaded = false,
+    ---@type number -- Timestamp of last save (for auto-save throttling)
+    lastSaveTime = 0,
 }
 Private.AchievementEngine = engine
 
@@ -53,9 +55,14 @@ function engine:Init()
     -- Register for logout to save data
     local frame = CreateFrame("Frame")
     frame:RegisterEvent("PLAYER_LOGOUT")
+    frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+    frame:RegisterEvent("PLAYER_ENTERING_WORLD")
     frame:SetScript("OnEvent", function(_, event)
         if event == "PLAYER_LOGOUT" then
             self:SaveProgress()
+        elseif event == "ZONE_CHANGED_NEW_AREA" or event == "PLAYER_ENTERING_WORLD" then
+            -- Auto-save on zone change if it's been 10+ minutes since last save
+            self:AutoSaveIfNeeded()
         end
     end)
 end
@@ -204,6 +211,23 @@ function engine:SaveProgress(silent)
     -- Also save explored zones from EventBridge
     if Private.EventBridge and Private.EventBridge.exploredZones then
         dbUtils:SaveExploredZones(Private.EventBridge.exploredZones)
+    end
+
+    -- Track last save time
+    if success then
+        self.lastSaveTime = time()
+    end
+end
+
+---Auto-save if it's been 10+ minutes since last save (skip if in combat)
+function engine:AutoSaveIfNeeded()
+    local currentTime = time()
+    local timeSinceLastSave = currentTime - (self.lastSaveTime or 0)
+    local TEN_MINUTES = 600
+
+    -- Only save if it's been 10+ minutes and we're not in combat
+    if timeSinceLastSave >= TEN_MINUTES and not InCombatLockdown() then
+        self:SaveProgress(true) -- silent save
     end
 end
 
