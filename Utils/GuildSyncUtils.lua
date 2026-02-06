@@ -376,6 +376,12 @@ function guildSync:LoadCachedData()
         -- Clean old events
         self:CleanOldEvents()
 
+        -- Update local player's version to current (fixes cached "preview" after version injection)
+        local playerName = UnitName("player")
+        if playerName and self.memberData[playerName] then
+            self.memberData[playerName].version = const.ADDON_VERSION or "1.0.0"
+        end
+
         local debugUtils = Private.DebugUtils
         if debugUtils then
             local memberCount = 0
