@@ -52,8 +52,8 @@ function commandUtils:Init()
         self.debugEnabled = true
     end
 
+    -- Only register /reckoning; /r is intentionally not registered (conflicts with reply)
     Private.Addon:RegisterCommand({
-        "R",
         "Reckoning",
     }, function(addon, args)
         if args and #args > 0 then
@@ -81,7 +81,7 @@ end
 
 function commandUtils:OnUnknownCommand(addon)
     addon:Print(self.L["CommandUtils.UnknownCommand"])
-    addon:Print("Type |cffffffff/r help|r for available commands.")
+    addon:Print("Type |cffffffff/reckoning help|r for available commands.")
 end
 
 function commandUtils:OnSettingsCommand()
@@ -104,17 +104,17 @@ end
 function commandUtils:OnHelpCommand(args)
     local addon = Private.Addon
     addon:Print("=== Reckoning Commands ===")
-    addon:Print("|cffffffff/r|r or |cffffffff/reckoning|r - Toggle achievements window")
-    addon:Print("|cffffffff/r settings|r - Open settings")
-    addon:Print("|cffffffff/r info|r - Show addon information")
-    addon:Print("|cffffffff/r reset confirm|r - Clear saved data")
-    addon:Print("|cffffffff/r help|r - Show this help")
+    addon:Print("|cffffffff/reckoning|r - Toggle achievements window")
+    addon:Print("|cffffffff/reckoning settings|r - Open settings")
+    addon:Print("|cffffffff/reckoning info|r - Show addon information")
+    addon:Print("|cffffffff/reckoning reset confirm|r - Clear saved data")
+    addon:Print("|cffffffff/reckoning help|r - Show this help")
 
     -- If debug mode is enabled, show additional info
     if self.debugEnabled then
         addon:Print("")
         addon:Print("|cffff6600[DEV MODE] Debug commands available!|r")
-        addon:Print("|cffffffff/r debug help|r - Show debug commands")
+        addon:Print("|cffffffff/reckoning debug help|r - Show debug commands")
     end
 end
 
@@ -175,7 +175,7 @@ function commandUtils:OnResetCommand(args)
     local confirm = args and args[1] == "confirm"
     if not confirm then
         addon:Print("This will clear all Reckoning saved data.")
-        addon:Print("Type |cffffffff/r reset confirm|r to proceed.")
+        addon:Print("Type |cffffffff/reckoning reset confirm|r to proceed.")
         return
     end
 

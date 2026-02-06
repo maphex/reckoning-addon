@@ -232,9 +232,9 @@ function debugUtils:Enable()
     self.enabled = true
     if Private.Addon then
         Private.Addon:Print("|cff00ff00Debug mode ENABLED|r")
-        Private.Addon:Print("Use |cffffffff/r debug status|r to see current state")
-        Private.Addon:Print("Use |cffffffff/r debug verbose|r to toggle verbose mode")
-        Private.Addon:Print("Use |cffffffff/r debug filter <category>|r to toggle filters")
+        Private.Addon:Print("Use |cffffffff/reckoning debug status|r to see current state")
+        Private.Addon:Print("Use |cffffffff/reckoning debug verbose|r to toggle verbose mode")
+        Private.Addon:Print("Use |cffffffff/reckoning debug filter <category>|r to toggle filters")
     end
 end
 

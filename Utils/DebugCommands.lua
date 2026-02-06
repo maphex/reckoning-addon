@@ -110,30 +110,30 @@ function debugCommands:PrintDebugHelp()
     addon:Print("|cffff6600WARNING: These commands are for development only!|r")
     addon:Print("")
     addon:Print("=== Debug Commands ===")
-    addon:Print("|cffffffff/r debug|r - Toggle debug mode")
-    addon:Print("|cffffffff/r debug on/off|r - Enable/disable debug")
-    addon:Print("|cffffffff/r debug verbose|r - Toggle verbose logging")
-    addon:Print("|cffffffff/r debug filter <category>|r - Toggle filter")
-    addon:Print("|cffffffff/r debug status|r - Show debug status")
-    addon:Print("|cffffffff/r debug history [count]|r - Show log history")
-    addon:Print("|cffffffff/r debug clear|r - Clear log history")
-    addon:Print("|cffffffff/r debug info|r - Show basic addon info")
+    addon:Print("|cffffffff/reckoning debug|r - Toggle debug mode")
+    addon:Print("|cffffffff/reckoning debug on/off|r - Enable/disable debug")
+    addon:Print("|cffffffff/reckoning debug verbose|r - Toggle verbose logging")
+    addon:Print("|cffffffff/reckoning debug filter <category>|r - Toggle filter")
+    addon:Print("|cffffffff/reckoning debug status|r - Show debug status")
+    addon:Print("|cffffffff/reckoning debug history [count]|r - Show log history")
+    addon:Print("|cffffffff/reckoning debug clear|r - Clear log history")
+    addon:Print("|cffffffff/reckoning debug info|r - Show basic addon info")
     addon:Print("")
     addon:Print("=== Testing Commands ===")
-    addon:Print("|cffffffff/r complete <id>|r - Force complete achievement")
-    addon:Print("|cffffffff/r alert <id>|r - Show achievement alert")
-    addon:Print("|cffffffff/r progress <id> [value]|r - View/set progress")
-    addon:Print("|cffffffff/r list [filter]|r - List achievements")
-    addon:Print("|cffffffff/r test|r - Run test scenarios")
-    addon:Print("|cffffffff/r inspect <id>|r - Inspect achievement")
-    addon:Print("|cffffffff/r fire <event> [args]|r - Fire test event")
-    addon:Print("|cffffffff/r week [num]|r - Get/set current week")
-    addon:Print("|cffffffff/r reset|r - Reset all progress")
+    addon:Print("|cffffffff/reckoning complete <id>|r - Force complete achievement")
+    addon:Print("|cffffffff/reckoning alert <id>|r - Show achievement alert")
+    addon:Print("|cffffffff/reckoning progress <id> [value]|r - View/set progress")
+    addon:Print("|cffffffff/reckoning list [filter]|r - List achievements")
+    addon:Print("|cffffffff/reckoning test|r - Run test scenarios")
+    addon:Print("|cffffffff/reckoning inspect <id>|r - Inspect achievement")
+    addon:Print("|cffffffff/reckoning fire <event> [args]|r - Fire test event")
+    addon:Print("|cffffffff/reckoning week [num]|r - Get/set current week")
+    addon:Print("|cffffffff/reckoning reset|r - Reset all progress")
     addon:Print("")
     addon:Print("=== Database Commands ===")
-    addon:Print("|cffffffff/r save|r - Force save progress now")
-    addon:Print("|cffffffff/r load|r - Force reload progress")
-    addon:Print("|cffffffff/r dbtest|r - Test database encoding/decoding")
+    addon:Print("|cffffffff/reckoning save|r - Force save progress now")
+    addon:Print("|cffffffff/reckoning load|r - Force reload progress")
+    addon:Print("|cffffffff/reckoning dbtest|r - Test database encoding/decoding")
     addon:Print("")
     addon:Print("Filter categories: EVENTS, TRIGGERS, CONDITIONS, PROGRESS, COMPLETION, WEEKLY, DATABASE, UI")
 end
@@ -169,8 +169,8 @@ end
 
 function debugCommands:OnInspectCommand(args)
     if not args or #args == 0 then
-        Private.Addon:Print("Usage: /r inspect <achievement_id>")
-        Private.Addon:Print("Example: /r inspect 1001")
+        Private.Addon:Print("Usage: /reckoning inspect <achievement_id>")
+        Private.Addon:Print("Example: /reckoning inspect 1001")
         return
     end
 
@@ -184,8 +184,8 @@ end
 
 function debugCommands:OnFireEventCommand(args)
     if not args or #args == 0 then
-        Private.Addon:Print("Usage: /r fire <event> [key=value ...]")
-        Private.Addon:Print("Example: /r fire DUNGEON_BOSS_KILLED bossName=Murmur")
+        Private.Addon:Print("Usage: /reckoning fire <event> [key=value ...]")
+        Private.Addon:Print("Example: /reckoning fire DUNGEON_BOSS_KILLED bossName=Murmur")
         return
     end
 
@@ -209,7 +209,7 @@ end
 function debugCommands:OnSetWeekCommand(args)
     if not args or #args == 0 then
         Private.Addon:Print("Current week: " .. Private.AchievementUtils:GetCurrentWeek())
-        Private.Addon:Print("Usage: /r week <number>")
+        Private.Addon:Print("Usage: /reckoning week <number>")
         return
     end
 
@@ -257,9 +257,9 @@ function debugCommands:OnCompleteCommand(args)
     local engine = Private.AchievementEngine
 
     if not args or #args == 0 then
-        addon:Print("Usage: /r complete <achievement_id>")
-        addon:Print("       /r complete all - Complete all achievements")
-        addon:Print("Example: /r complete 1001")
+        addon:Print("Usage: /reckoning complete <achievement_id>")
+        addon:Print("       /reckoning complete all - Complete all achievements")
+        addon:Print("Example: /reckoning complete 1001")
         return
     end
 
@@ -290,9 +290,9 @@ function debugCommands:OnAlertCommand(args)
     local addon = Private.Addon
 
     if not args or #args == 0 then
-        addon:Print("Usage: /r alert <achievement_id>")
-        addon:Print("       /r alert test - Show a test alert")
-        addon:Print("Example: /r alert 1001")
+        addon:Print("Usage: /reckoning alert <achievement_id>")
+        addon:Print("       /reckoning alert test - Show a test alert")
+        addon:Print("Example: /reckoning alert 1001")
         return
     end
 
@@ -330,11 +330,11 @@ function debugCommands:OnProgressCommand(args)
     local aUtils = Private.AchievementUtils
 
     if not args or #args == 0 then
-        addon:Print("Usage: /r progress <achievement_id> [value]")
-        addon:Print("       /r progress <id> - View current progress")
-        addon:Print("       /r progress <id> 5 - Set progress to 5")
-        addon:Print("       /r progress <id> +1 - Add 1 to progress")
-        addon:Print("       /r progress <id> max - Set to required and auto-complete")
+        addon:Print("Usage: /reckoning progress <achievement_id> [value]")
+        addon:Print("       /reckoning progress <id> - View current progress")
+        addon:Print("       /reckoning progress <id> 5 - Set progress to 5")
+        addon:Print("       /reckoning progress <id> +1 - Add 1 to progress")
+        addon:Print("       /reckoning progress <id> max - Set to required and auto-complete")
         return
     end
 
@@ -394,7 +394,7 @@ function debugCommands:OnProgressCommand(args)
             engine:CompleteAchievement(achievement)
             addon:Print("|cff00ff00Achievement completed!|r")
         else
-            addon:Print("|cff888888(Debug: use '/r progress " .. achievementId .. " max' to auto-complete, or '/r complete " .. achievementId .. "')|r")
+            addon:Print("|cff888888(Debug: use '/reckoning progress " .. achievementId .. " max' to auto-complete, or '/reckoning complete " .. achievementId .. "')|r")
         end
     end
 end
@@ -454,7 +454,7 @@ function debugCommands:OnListCommand(args)
 
     addon:Print("")
     addon:Print("Filters: all, completed, failed, progress, available")
-    addon:Print("Usage: /r list [filter]")
+    addon:Print("Usage: /reckoning list [filter]")
 end
 
 ---Run various test scenarios
@@ -465,14 +465,14 @@ function debugCommands:OnTestCommand(args)
 
     if not args or #args == 0 then
         addon:Print("=== Test Commands ===")
-        addon:Print("|cffffffff/r test alert|r - Test alert animation")
-        addon:Print("|cffffffff/r test boss <name>|r - Simulate boss kill")
-        addon:Print("|cffffffff/r test quest <id>|r - Simulate quest complete")
-        addon:Print("|cffffffff/r test dungeon <name>|r - Simulate dungeon clear")
-        addon:Print("|cffffffff/r test skill <name> <level>|r - Simulate skill up")
-        addon:Print("|cffffffff/r test kill|r - Simulate PvP kill")
-        addon:Print("|cffffffff/r test loot <itemId>|r - Simulate item loot")
-        addon:Print("|cffffffff/r test rep <faction> <standing>|r - Simulate rep gain")
+        addon:Print("|cffffffff/reckoning test alert|r - Test alert animation")
+        addon:Print("|cffffffff/reckoning test boss <name>|r - Simulate boss kill")
+        addon:Print("|cffffffff/reckoning test quest <id>|r - Simulate quest complete")
+        addon:Print("|cffffffff/reckoning test dungeon <name>|r - Simulate dungeon clear")
+        addon:Print("|cffffffff/reckoning test skill <name> <level>|r - Simulate skill up")
+        addon:Print("|cffffffff/reckoning test kill|r - Simulate PvP kill")
+        addon:Print("|cffffffff/reckoning test loot <itemId>|r - Simulate item loot")
+        addon:Print("|cffffffff/reckoning test rep <faction> <standing>|r - Simulate rep gain")
         return
     end
 
@@ -569,7 +569,7 @@ function debugCommands:OnTestCommand(args)
 
     else
         addon:Print("Unknown test type: " .. testType)
-        addon:Print("Use /r test for help")
+        addon:Print("Use /reckoning test for help")
     end
 end
 
