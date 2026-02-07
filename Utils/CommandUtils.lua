@@ -33,6 +33,9 @@ function commandUtils:Init()
         ["info"] = self.OnInfoCommand,
         ["version"] = self.OnInfoCommand,
 
+        -- Version check command
+        ["ver"] = self.OnVersionCheckCommand,
+
         -- Reset saved variables
         ["reset"] = self.OnResetCommand,
         ["clear"] = self.OnResetCommand,
@@ -107,6 +110,7 @@ function commandUtils:OnHelpCommand(args)
     addon:Print("|cffffffff/reckoning|r - Toggle achievements window")
     addon:Print("|cffffffff/reckoning settings|r - Open settings")
     addon:Print("|cffffffff/reckoning info|r - Show addon information")
+    addon:Print("|cffffffff/reckoning ver [name]|r - Check addon version")
     addon:Print("|cffffffff/reckoning reset confirm|r - Clear saved data")
     addon:Print("|cffffffff/reckoning help|r - Show this help")
 
@@ -166,6 +170,57 @@ function commandUtils:OnInfoCommand(args)
 
     local pointsName = const and const.DISPLAY and const.DISPLAY.POINTS_NAME or "Points"
     addon:Print(pointsName .. ": " .. earnedPoints .. "/" .. totalPoints)
+end
+
+function commandUtils:OnVersionCheckCommand(args)
+    local addon = Private.Addon
+    if not addon then return end
+
+    local targetName = args and args[1] or ""
+
+    if targetName == "" then
+        -- Show own version
+        local myVersion = const and const.ADDON_VERSION or "Unknown"
+        addon:Print("Your Reckoning addon version: " .. tostring(myVersion))
+        return
+    end
+
+    -- Check if in guild
+    if not IsInGuild() then
+        addon:Print("You must be in a guild to check other players' versions")
+        return
+    end
+
+    local guildSync = Private.GuildSyncUtils
+    if not guildSync then
+        addon:Print("Guild sync not available")
+        return
+    end
+
+    -- Remove realm suffix if present for consistency
+    local shortName = strsplit("-", targetName)
+
+    -- Check cached data first
+    local member = guildSync.memberData and guildSync.memberData[shortName]
+    if member and member.version then
+        local versionText = member.version
+        local lastSeen = guildSync:FormatTimestamp(member.lastSeen)
+        addon:Print(string.format("%s's version: %s (last seen: %s)", shortName, versionText, lastSeen))
+
+        -- If version is unknown or outdated, offer to query
+        if member.version == "N/A" or member.version == "Unknown" then
+            addon:Print("Version not available in cache. They may not have the addon or haven't synced yet.")
+        end
+    else
+        addon:Print(string.format("No data found for %s. They may not be in your guild or haven't synced yet.", shortName))
+    end
+
+    -- Trigger a roster request to refresh data
+    if Private.CommsUtils then
+        C_Timer.After(0.5, function()
+            guildSync:RequestFullSync()
+        end)
+    end
 end
 
 function commandUtils:OnResetCommand(args)

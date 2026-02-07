@@ -381,10 +381,18 @@ function guildSync:LoadCachedData()
         -- Clean old events
         self:CleanOldEvents()
 
-        -- Update local player's version to current (fixes cached "preview" after version injection)
-        local playerName = UnitName("player")
-        if playerName and self.memberData[playerName] then
-            self.memberData[playerName].version = const.ADDON_VERSION or "1.0.0"
+        -- Fix all cached "preview" versions (not just local player)
+        -- This ensures roster displays fresh version data after release builds
+        for playerName, member in pairs(self.memberData) do
+            if member.version == "preview" or member.version == "@project-version@" then
+                if playerName == UnitName("player") then
+                    -- Update local player to current version
+                    member.version = const.ADDON_VERSION or "1.0.0"
+                else
+                    -- Mark other players as unknown until they sync fresh data
+                    member.version = "N/A"
+                end
+            end
         end
 
         local debugUtils = Private.DebugUtils
