@@ -848,7 +848,7 @@ function eventBridge:HandleCombatLog(...)
             self:Fire("PVP_KILLING_BLOW", {
                 victimClass = Private.UnitCache:GetClassByGUID(destGUID),
                 victimLevel = Private.UnitCache:GetLevelByGUID(destGUID),
-                location = GetZoneText() or "Unknown",
+                zone = GetZoneText() or "Unknown",
                 targetType = targetType,
             })
         elseif destType == "Creature" then
@@ -860,6 +860,7 @@ function eventBridge:HandleCombatLog(...)
                 creatureId = npcId,
                 level = Private.UnitCache:GetLevelByGUID(destGUID),
                 creatureType = Private.UnitCache:GetCreatureTypeByGUID(destGUID),
+                zone = GetZoneText() or "Unknown",
             })
         end
     end
@@ -896,7 +897,7 @@ function eventBridge:HandleCombatLog(...)
             self:Fire("PVP_KILL", {
                 victimClass = Private.UnitCache:GetClassByGUID(destGUID),
                 victimLevel = Private.UnitCache:GetLevelByGUID(destGUID),
-                location = GetZoneText() or "Unknown",
+                zone = GetZoneText() or "Unknown",
                 isKillingBlow = isKillingBlow,
                 totalKills = self.pvpState.kills,
             })

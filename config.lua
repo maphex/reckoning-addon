@@ -1788,7 +1788,10 @@ local ACHIEVEMENTS = {
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
 			event = "CREATURE_KILLED",
-			conditions = { creatureName = function(n) return n and n:find("Air") and n:find("Elemental") end }
+			conditions = {
+				creatureName = { "Dust Howler", "Storm Rager", "Living Cyclone" },
+				zone = function(z) return z and OUTLAND_ZONES[z] end
+			}
 		},
 		progress = { type = "count", required = 25 }
 	},
@@ -3297,7 +3300,7 @@ local ACHIEVEMENTS = {
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "PVP_KILL",
-			conditions = { zone = "Outland" }
+			conditions = { zone = function(z) return z and OUTLAND_ZONES[z] end }
 		},
 		progress = { type = "count", required = 1000 }
 	},
