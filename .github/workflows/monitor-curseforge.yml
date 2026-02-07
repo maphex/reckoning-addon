@@ -5,22 +5,32 @@ on:
     - cron: "*/15 * * * *"
   workflow_dispatch: # Allow manual triggering for testing
 
+permissions:
+  contents: write # Required to push to branches
+
 jobs:
   check-version:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout main branch
         uses: actions/checkout@v4
-        with:
-          ref: curseforge-state
-          path: state-repo
-        continue-on-error: true
 
-      - name: Load previous version
+      - name: Load previous version from state branch
+        continue-on-error: true
         run: |
-          if [ -f state-repo/last-version.txt ]; then
-            cp state-repo/last-version.txt .
+          # Try to fetch the state branch and read the version file
+          if git ls-remote --heads origin curseforge-state | grep -q curseforge-state; then
+            echo "State branch exists, fetching..."
+            git fetch origin curseforge-state
+            # Read file directly from remote branch without checking it out
+            SAVED_VERSION=$(git show origin/curseforge-state:last-version.txt 2>/dev/null || echo "")
+            if [ -n "$SAVED_VERSION" ]; then
+              echo "$SAVED_VERSION" > last-version.txt
+              echo "Loaded previous version: $SAVED_VERSION"
+            fi
+          else
+            echo "State branch doesn't exist yet (first run)"
           fi
 
       - name: Check CurseForge for new version
@@ -88,23 +98,18 @@ jobs:
           {
             "embeds": [{
               "title": "🎮 New Reckoning Version Released!",
-              "description": "A new version of Reckoning has been published on CurseForge",
+              "description": "**$LATEST_VERSION** is now available on CurseForge",
               "color": 5814783,
               "fields": [
                 {
-                  "name": "Version",
-                  "value": "$LATEST_VERSION",
+                  "name": "📅 Released",
+                  "value": "<t:$(date -d "$UPLOAD_TIME" +%s):R>",
                   "inline": true
                 },
                 {
-                  "name": "File ID",
-                  "value": "$FILE_ID",
+                  "name": "🔗 Download",
+                  "value": "[CurseForge](https://www.curseforge.com/wow/addons/reckoning/files/$FILE_ID)",
                   "inline": true
-                },
-                {
-                  "name": "Released",
-                  "value": "$UPLOAD_TIME",
-                  "inline": false
                 }
               ],
               "url": "https://www.curseforge.com/wow/addons/reckoning/files/$FILE_ID",
@@ -146,33 +151,33 @@ jobs:
       - name: Save version to state branch
         if: always() && hashFiles('last-version.txt') != ''
         run: |
-          # If state-repo doesn't exist, create and initialize it
-          if [ ! -d state-repo/.git ]; then
-            echo "Initializing state repository..."
-            mkdir -p state-repo
-            cd state-repo
-            git init
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git checkout -b curseforge-state
-            git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-            cd ..
-          fi
+          # Save the version content before switching branches
+          SAVED_VERSION=$(cat last-version.txt)
 
-          # Copy the version file
-          cp last-version.txt state-repo/
-
-          # Commit and push if there are changes
-          cd state-repo
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if state branch exists on remote
+          if git ls-remote --heads origin curseforge-state | grep -q curseforge-state; then
+            echo "State branch exists, checking it out..."
+            git fetch origin curseforge-state
+            git checkout curseforge-state
+          else
+            echo "Creating new orphan state branch..."
+            git checkout --orphan curseforge-state
+            git rm -rf . 2>/dev/null || true
+          fi
+
+          # Write the saved version
+          echo "$SAVED_VERSION" > last-version.txt
+
+          # Add and commit if there are changes
           git add last-version.txt
 
-          # Check if there are changes to commit
-          if git diff --staged --quiet; then
+          if git diff --staged --quiet 2>/dev/null; then
             echo "No changes to commit"
           else
-            git commit -m "Update last CurseForge version to $(cat last-version.txt)"
-            git push -f origin curseforge-state
+            git commit -m "Update last CurseForge version to $SAVED_VERSION"
+            git push origin curseforge-state
             echo "✓ State saved to curseforge-state branch"
           fi
