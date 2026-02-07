@@ -144,6 +144,9 @@ function addon:OnInitialize(...)
     if Private.CorrectionSyncUtils and Private.CorrectionSyncUtils.Init then
         Private.CorrectionSyncUtils:Init()
     end
+    if Private.MinimapButton and Private.MinimapButton.Init then
+        Private.MinimapButton:Init()
+    end
 end
 
 function addon:OnEnable(...)

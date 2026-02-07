@@ -1,5 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Bindings>
-    <Binding name="TOGGLEACHIEVEMENT" category="ADDONS">
-        ToggleReckoningAchievementFrame()
+    <Binding name="TOGGLEACHIEVEMENT" header="RECKONING" category="Reckoning" default="Y">
+        if ToggleReckoningAchievementFrame then
+            ToggleReckoningAchievementFrame()
+        end
     </Binding>
 </Bindings>

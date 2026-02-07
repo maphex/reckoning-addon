@@ -41,10 +41,15 @@ function settingsUtils:GetDBFunc(funcType, setting, default)
 end
 
 function settingsUtils:Init()
-    local RFSettings = LibStub("RasuForge-Settings")
     local addon = Private.Addon
     self.addon = addon
 
+    -- Skip RasuForge-Settings in Classic/TBC (use ClassicSettings instead)
+    if InterfaceOptions_AddCategory then
+        return
+    end
+
+    local RFSettings = LibStub("RasuForge-Settings")
     local settings = RFSettings:NewCategory(addon.DisplayName)
     self.settings = settings
 end
@@ -142,7 +147,10 @@ function settingsUtils:CreatePanel(template, data, height, identifier, onInit, o
 end
 
 function settingsUtils:Open()
-    self.settings:Open()
+    -- Open settings (uses RasuForge-Settings if initialized)
+    if self.settings then
+        self.settings:Open()
+    end
 end
 
 -- For now we just ensure backward compatibility
