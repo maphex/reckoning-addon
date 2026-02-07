@@ -2,8 +2,7 @@ name: Monitor CurseForge Releases
 
 on:
   schedule:
-    # Run every 14 minutes
-    - cron: "*/14 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch: # Allow manual triggering for testing
 
 jobs:
@@ -11,12 +10,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download previous version artifact
-        uses: actions/download-artifact@v4
-        continue-on-error: true
+      - name: Checkout repo
+        uses: actions/checkout@v4
         with:
-          name: curseforge-last-version
-          path: .
+          ref: curseforge-state
+          path: state-repo
+        continue-on-error: true
+
+      - name: Load previous version
+        run: |
+          if [ -f state-repo/last-version.txt ]; then
+            cp state-repo/last-version.txt .
+          fi
 
       - name: Check CurseForge for new version
         id: check
@@ -138,10 +143,36 @@ jobs:
             fi
           fi
 
-      - name: Upload version artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: curseforge-last-version
-          path: last-version.txt
-          retention-days: 90
+      - name: Save version to state branch
+        if: always() && hashFiles('last-version.txt') != ''
+        run: |
+          # If state-repo doesn't exist, create and initialize it
+          if [ ! -d state-repo/.git ]; then
+            echo "Initializing state repository..."
+            mkdir -p state-repo
+            cd state-repo
+            git init
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git checkout -b curseforge-state
+            git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+            cd ..
+          fi
+
+          # Copy the version file
+          cp last-version.txt state-repo/
+
+          # Commit and push if there are changes
+          cd state-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add last-version.txt
+
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update last CurseForge version to $(cat last-version.txt)"
+            git push -f origin curseforge-state
+            echo "✓ State saved to curseforge-state branch"
+          fi
