@@ -33,16 +33,39 @@ jobs:
             echo "No previous version found, this is first run"
           fi
 
-          # Query CurseForge API for latest file
-          echo "Querying CurseForge API..."
-          RESPONSE=$(curl -s -H "x-api-key: $CF_API_KEY" \
-            "https://api.curseforge.com/v1/mods/1453511/files?pageSize=1")
+          # Query CurseForge API for latest files (fetch 10 to ensure we get the latest)
+          echo "Querying CurseForge API for project 1453511..."
+          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+            -H "Accept: application/json" \
+            -H "x-api-key: $CF_API_KEY" \
+            "https://api.curseforge.com/v1/mods/1453511/files?index=0&pageSize=10")
+
+          # Extract HTTP code
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+          RESPONSE=$(echo "$RESPONSE" | sed '/HTTP_CODE:/d')
+
+          echo "HTTP Status: $HTTP_CODE"
+
+          # Check if response is valid
+          if [ -z "$RESPONSE" ] || ! echo "$RESPONSE" | jq -e '.data' > /dev/null 2>&1; then
+            echo "❌ Error: Failed to get valid response from CurseForge API"
+            echo "API Response:"
+            echo "$RESPONSE" | jq '.' || echo "$RESPONSE"
+            exit 1
+          fi
+
+          echo "✓ Successfully fetched files from API"
+          FILE_COUNT=$(echo "$RESPONSE" | jq '.data | length')
+          echo "Found $FILE_COUNT files"
+
+          # Sort by fileDate and get the most recent file
+          LATEST_FILE=$(echo "$RESPONSE" | jq -r '.data | sort_by(.fileDate) | reverse | .[0]')
 
           # Extract latest version info
-          LATEST_VERSION=$(echo "$RESPONSE" | jq -r '.data[0].displayName')
-          FILE_ID=$(echo "$RESPONSE" | jq -r '.data[0].id')
-          DOWNLOAD_URL=$(echo "$RESPONSE" | jq -r '.data[0].downloadUrl')
-          UPLOAD_TIME=$(echo "$RESPONSE" | jq -r '.data[0].fileDate')
+          LATEST_VERSION=$(echo "$LATEST_FILE" | jq -r '.displayName')
+          FILE_ID=$(echo "$LATEST_FILE" | jq -r '.id')
+          DOWNLOAD_URL=$(echo "$LATEST_FILE" | jq -r '.downloadUrl')
+          UPLOAD_TIME=$(echo "$LATEST_FILE" | jq -r '.fileDate')
 
           echo "Latest version: $LATEST_VERSION"
           echo "File ID: $FILE_ID"
