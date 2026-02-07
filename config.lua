@@ -1716,7 +1716,7 @@ local ACHIEVEMENTS = {
 	{
 		id = 6002,
 		name = "Primal Procurer (Shadow)",
-		description = "Loot 5 Primal Shadow (or 50 Mote of Shadow) in Outland",
+		description = "Loot 50 Mote of Shadow in Outland",
 		points = 10,
 		category = 6,
 		subCategory = 60,
@@ -1724,10 +1724,10 @@ local ACHIEVEMENTS = {
 		cadence = Enums.Cadence.Weekly,
 		startWeek = 1,
 		trigger = {
-			event = "PRIMAL_LOOTED",
-			conditions = { itemName = { "Primal Shadow", "Mote of Shadow" } }
+			event = "ITEM_LOOTED",
+			conditions = { itemName = "Mote of Shadow" }
 		},
-		progress = { type = "either", required = 50 }
+		progress = { type = "count", required = 50 }
 	},
 	{
 		id = 6003,
@@ -1750,77 +1750,93 @@ local ACHIEVEMENTS = {
 	{
 		id = 6004,
 		name = "Full life",
-		description = "Gather 100 herbs in Outland",
+		description = "Loot 50 Mote of Life in Outland",
 		points = 10,
 		category = 6,
 		subCategory = 60,
 		icon = 132848,
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
-			event = "RESOURCE_GATHERED",
-			conditions = { gatherType = Enums.GatherType.Herbalism }
+			event = "ITEM_LOOTED",
+			conditions = { itemName = "Mote of Life" }
 		},
-		progress = { type = "count", required = 100 }
+		progress = { type = "count", required = 50 }
 	},
 	{
 		id = 6005,
 		name = "Playing with Fire",
-		description = "Loot 5 Primal Fire (or 50 Mote of Fire) in Outland",
+		description = "Loot 50 Mote of Fire in Outland",
 		points = 10,
 		category = 6,
 		subCategory = 60,
 		icon = 132847,
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
-			event = "PRIMAL_LOOTED",
-			conditions = { itemName = { "Primal Fire", "Mote of Fire" } }
+			event = "ITEM_LOOTED",
+			conditions = { itemName = "Mote of Fire" }
 		},
-		progress = { type = "either", required = 50 }
+		progress = { type = "count", required = 50 }
 	},
 	{
 		id = 6006,
 		name = "Air Ball",
-		description = "Loot 5 Primal Air (or 50 Mote of Air) in Outland",
+		description = "Loot 50 Mote of Air in Outland",
 		points = 10,
 		category = 6,
 		subCategory = 60,
 		icon = 132845,
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
-			event = "PRIMAL_LOOTED",
-			conditions = { itemName = { "Primal Air", "Mote of Air" } }
+			event = "ITEM_LOOTED",
+			conditions = { itemName = "Mote of Air" }
 		},
-		progress = { type = "either", required = 50 }
+		progress = { type = "count", required = 50 }
 	},
 	{
 		id = 6007,
 		name = "Salt of the Earth",
-		description = "Mine 100 ore in Outland",
+		description = "Loot 50 Mote of Earth in Outland",
 		points = 10,
 		category = 6,
 		subCategory = 60,
 		icon = 132846,
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
-			event = "RESOURCE_GATHERED",
-			conditions = { gatherType = Enums.GatherType.Mining }
+			event = "ITEM_LOOTED",
+			conditions = { itemName = "Mote of Earth" }
 		},
-		progress = { type = "count", required = 100 }
+		progress = { type = "count", required = 50 }
 	},
 	{
 		id = 6008,
 		name = "Mana Matters",
-		description = "Loot 5 Primal Mana (or 50 Mote of Mana) in Netherstorm",
+		description = "Loot 50 Mote of Mana in Netherstorm",
 		points = 10,
 		category = 6,
 		subCategory = 60,
 		icon = 132849,
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
-			event = "PRIMAL_LOOTED",
-			conditions = { itemName = { "Primal Mana", "Mote of Mana" }, zone = "Netherstorm" }
+			event = "ITEM_LOOTED",
+			conditions = { itemName = "Mote of Mana", zone = "Netherstorm" }
 		},
-		progress = { type = "either", required = 50 }
+		progress = { type = "count", required = 50 }
+	},
+	{
+		id = 6020,
+		name = "Water Me Up",
+		description = "Loot 50 Mote of Water in Outland",
+		points = 10,
+		category = 6,
+		subCategory = 60,
+		icon = 132852,
+		cadence = Enums.Cadence.Weekly,
+		startWeek = 1,
+		trigger = {
+			event = "ITEM_LOOTED",
+			conditions = { itemName = "Mote of Water" }
+		},
+		progress = { type = "count", required = 50 }
 	},
 	{
 		id = 6009,
