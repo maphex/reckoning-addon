@@ -157,6 +157,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Remove the file from working directory to avoid conflicts when checking out
+          rm -f last-version.txt
+
           # Check if state branch exists on remote
           if git ls-remote --heads origin curseforge-state | grep -q curseforge-state; then
             echo "State branch exists, checking it out..."
