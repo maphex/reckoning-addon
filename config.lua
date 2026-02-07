@@ -3039,8 +3039,8 @@ local ACHIEVEMENTS = {
 		icon = 132284,
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
-			event = "PVP_KILLING_BLOW",
-			conditions = {}
+			event = "PVP_KILL",
+			conditions = { isKillingBlow = true }
 		},
 		progress = { type = "count", required = 10, reset = "match" }
 	},
