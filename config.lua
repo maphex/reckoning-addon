@@ -1269,7 +1269,7 @@ local ACHIEVEMENTS = {
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "KEY_OBTAINED",
-			conditions = {}
+			conditions = { keyType = 1 }
 		},
 		progress = { type = "count", required = 3 }
 	},
@@ -1297,7 +1297,7 @@ local ACHIEVEMENTS = {
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "KEY_OBTAINED",
-			conditions = {}
+			conditions = { keyType = 1 }
 		},
 		progress = { type = "count", required = 5 }
 	},
