@@ -1,0 +1,124 @@
+name: Monitor CurseForge Releases
+
+on:
+  schedule:
+    # Run every hour at minute 0
+    - cron: '0 * * * *'
+  workflow_dispatch: # Allow manual triggering for testing
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download previous version artifact
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: curseforge-last-version
+          path: .
+
+      - name: Check CurseForge for new version
+        id: check
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          # Read last seen version if exists
+          LAST_VERSION=""
+          if [ -f last-version.txt ]; then
+            LAST_VERSION=$(cat last-version.txt)
+            echo "Last seen version: $LAST_VERSION"
+          else
+            echo "No previous version found, this is first run"
+          fi
+
+          # Query CurseForge API for latest file
+          echo "Querying CurseForge API..."
+          RESPONSE=$(curl -s -H "x-api-key: $CF_API_KEY" \
+            "https://api.curseforge.com/v1/mods/1453511/files?pageSize=1")
+
+          # Extract latest version info
+          LATEST_VERSION=$(echo "$RESPONSE" | jq -r '.data[0].displayName')
+          FILE_ID=$(echo "$RESPONSE" | jq -r '.data[0].id')
+          DOWNLOAD_URL=$(echo "$RESPONSE" | jq -r '.data[0].downloadUrl')
+          UPLOAD_TIME=$(echo "$RESPONSE" | jq -r '.data[0].fileDate')
+
+          echo "Latest version: $LATEST_VERSION"
+          echo "File ID: $FILE_ID"
+
+          # Check if version is new
+          if [ "$LATEST_VERSION" != "$LAST_VERSION" ] && [ -n "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "null" ]; then
+            echo "New version detected: $LATEST_VERSION"
+            echo "new_version=true" >> $GITHUB_OUTPUT
+
+            # Send Discord webhook notification
+            if [ -n "$DISCORD_WEBHOOK" ]; then
+              echo "Sending Discord notification..."
+
+              WEBHOOK_DATA=$(cat <<EOF
+          {
+            "embeds": [{
+              "title": "🎮 New Reckoning Version Released!",
+              "description": "A new version of Reckoning has been published on CurseForge",
+              "color": 5814783,
+              "fields": [
+                {
+                  "name": "Version",
+                  "value": "$LATEST_VERSION",
+                  "inline": true
+                },
+                {
+                  "name": "File ID",
+                  "value": "$FILE_ID",
+                  "inline": true
+                },
+                {
+                  "name": "Released",
+                  "value": "$UPLOAD_TIME",
+                  "inline": false
+                }
+              ],
+              "url": "https://www.curseforge.com/wow/addons/reckoning/files/$FILE_ID",
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+            }]
+          }
+          EOF
+              )
+
+              curl -H "Content-Type: application/json" \
+                -d "$WEBHOOK_DATA" \
+                "$DISCORD_WEBHOOK"
+
+              echo "Discord notification sent successfully!"
+
+              # Only save new version after successful webhook delivery
+              echo "$LATEST_VERSION" > last-version.txt
+            else
+              echo "⚠️  WARNING: New version detected but DISCORD_WEBHOOK secret not configured!"
+              echo "⚠️  Not updating last-version.txt so notification will retry when webhook is configured"
+              echo "⚠️  New version: $LATEST_VERSION"
+
+              # Keep the old version so we retry notification when webhook is configured
+              if [ -n "$LAST_VERSION" ]; then
+                echo "$LAST_VERSION" > last-version.txt
+              fi
+            fi
+          else
+            echo "No new version detected"
+            # Keep the last version file as-is
+            if [ -n "$LAST_VERSION" ]; then
+              echo "$LAST_VERSION" > last-version.txt
+            else
+              # First run with no new version - save current version
+              echo "$LATEST_VERSION" > last-version.txt
+            fi
+          fi
+
+      - name: Upload version artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: curseforge-last-version
+          path: last-version.txt
+          retention-days: 90
