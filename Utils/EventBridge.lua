@@ -1959,6 +1959,9 @@ function eventBridge:HandleSystemMessage(message)
             break
         end
     end
+
+    -- Check for loot roll wins (roll winner announcements come through CHAT_MSG_SYSTEM)
+    self:CheckLootRollWin(message)
 end
 
 function eventBridge:HandlePlayerEmote(message)
@@ -2194,30 +2197,51 @@ function eventBridge:HandleLootRollsComplete(rollId)
     end
 end
 
--- Also track roll wins via system messages
+-- Track recent rolls for correlating with win messages
+eventBridge.recentRolls = eventBridge.recentRolls or {}
+
+-- Also track roll wins via loot messages
 function eventBridge:CheckLootRollWin(message)
     if not message then return end
 
     local playerName = UnitName("player")
 
-    -- Pattern: "PlayerName won: [Item Name]"
-    -- Pattern: "PlayerName has selected Need/Greed for: [Item Name]"
-    if message:find(playerName) and message:find("won:") then
+    -- Pattern 1: "[Loot]: Greed Roll - 98 for [Item] by [PlayerName]"
+    -- Track YOUR rolls to capture the roll number
+    local rollTypeText, rollNum, itemLink, rollerName = message:match("%[Loot%]:%s*(.-)%s+Roll%s*%-%s*(%d+)%s+for%s+(|c%x+|Hitem:.-|h%[.-%]|h|r)%s+by%s+(.+)")
+    if rollTypeText and rollNum and itemLink and rollerName == playerName then
+        local itemId = tonumber(itemLink:match("item:(%d+)"))
+        if itemId then
+            -- Store your roll for this item (keep for 30 seconds)
+            self.recentRolls[itemId] = {
+                rollValue = tonumber(rollNum),
+                rollType = (rollTypeText:find("Need") and 1) or (rollTypeText:find("Greed") and 2) or (rollTypeText:find("Disenchant") and 3) or 1,
+                timestamp = GetTime(),
+            }
+        end
+    end
+
+    -- Pattern 2: "[Loot]: You won: [Item]"
+    -- This confirms you won the roll
+    if message:find("You won:") then
         local itemLink = message:match("|c%x+|Hitem:.-|h%[.-%]|h|r")
         if itemLink then
             local itemId = tonumber(itemLink:match("item:(%d+)"))
             local itemName = itemLink:match("%[(.-)%]")
             local _, _, quality = GetItemInfo(itemLink)
 
-            local rollType = 1 -- Default to Need (Enums.RollType.Need)
-            if message:find("Greed") then
-                rollType = 2  -- Enums.RollType.Greed
-            elseif message:find("Disenchant") then
-                rollType = 3  -- Enums.RollType.Disenchant
-            end
+            -- Try to get stored roll info
+            local rollInfo = self.recentRolls[itemId]
+            local rollValue = 0
+            local rollType = 1 -- Default to Need
 
-            -- Try to extract roll value from message
-            local rollValue = tonumber(message:match("rolled (%d+)")) or 0
+            if rollInfo and (GetTime() - rollInfo.timestamp) < 30 then
+                -- Use stored roll info
+                rollValue = rollInfo.rollValue or 0
+                rollType = rollInfo.rollType or 1
+                -- Clean up
+                self.recentRolls[itemId] = nil
+            end
 
             self:Fire("LOOT_ROLL_WON", {
                 itemId = itemId,
