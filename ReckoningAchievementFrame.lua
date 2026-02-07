@@ -2954,7 +2954,7 @@ function ReckoningAchievementManage_DoAction(achievementId, actionType, opts)
         opts.fromDate = time()
     end
     if actionType == "revalidate" then
-        opts.addonVersion = (priv and priv.constants and priv.constants.ADDON_VERSION) or "preview"
+        opts.addonVersion = (priv and priv.constants and priv.constants.ADDON_VERSION) or "Unknown"
         opts.effectiveAt = time()
     end
     local c = correctionSync:CreateCorrection(achievementId, actionType, opts)

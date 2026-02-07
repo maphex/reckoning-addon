@@ -207,9 +207,11 @@ function commandUtils:OnVersionCheckCommand(args)
         local lastSeen = guildSync:FormatTimestamp(member.lastSeen)
         addon:Print(string.format("%s's version: %s (last seen: %s)", shortName, versionText, lastSeen))
 
-        -- If version is unknown or outdated, offer to query
-        if member.version == "N/A" or member.version == "Unknown" then
-            addon:Print("Version not available in cache. They may not have the addon or haven't synced yet.")
+        -- If version is unknown or unavailable
+        if member.version == "Unknown" then
+            addon:Print("Version not available. They may be running a dev build or haven't synced yet.")
+        elseif member.version == "N/A" then
+            addon:Print("They don't appear to have the addon installed.")
         end
     else
         addon:Print(string.format("No data found for %s. They may not be in your guild or haven't synced yet.", shortName))

@@ -12,7 +12,7 @@ local const = Private.constants
 ---@field name string Player name
 ---@field class string Class name
 ---@field classId number Class ID
----@field version string Addon version or "N/A"
+---@field version string Addon version, "Unknown" if dev build, or "N/A" if no addon
 ---@field lastSeen number Unix timestamp of last seen
 ---@field completions table<number, number> achievementId -> timestamp
 ---@field completionVersions table<number, string>|nil achievementId -> addon version at completion (for correction gating)
@@ -159,7 +159,7 @@ end
 function guildSync:ParseSemVer(v)
     if type(v) ~= "string" then return nil, nil, nil end
     v = v:gsub("^%s+", ""):gsub("%s+$", "")
-    if v == "" or v == "preview" or v == "@project-version@" then return nil, nil, nil end
+    if v == "" or v == "Unknown" or v == "N/A" then return nil, nil, nil end
     v = v:gsub("^v", "")
 
     local major, minor, patch = v:match("^(%d+)%.(%d+)%.(%d+)")
@@ -195,13 +195,13 @@ function guildSync:CompareSemVer(a, b)
 end
 
 ---@param otherVersion string|nil
----@return boolean|nil newer True if our version > otherVersion, nil if not comparable (unless other is non-N/A unknown; then true)
+---@return boolean|nil newer True if our version > otherVersion, nil if not comparable
 function guildSync:IsMyVersionNewerThan(otherVersion)
     local mine = const and const.ADDON_VERSION or nil
-    if type(otherVersion) == "string" and otherVersion ~= "" and otherVersion ~= "N/A" then
+    if type(otherVersion) == "string" and otherVersion ~= "" and otherVersion ~= "Unknown" and otherVersion ~= "N/A" then
         local m1 = self:ParseSemVer(mine)
         local o1 = self:ParseSemVer(otherVersion)
-        -- If our version is SemVer but theirs is not (preview/placeholder/custom like @project-version@), treat as outdated.
+        -- If our version is SemVer but theirs is not, treat as outdated.
         if m1 and not o1 then
             return true
         end
@@ -381,16 +381,16 @@ function guildSync:LoadCachedData()
         -- Clean old events
         self:CleanOldEvents()
 
-        -- Fix all cached "preview" versions (not just local player)
+        -- Fix all cached "Unknown" versions (not just local player)
         -- This ensures roster displays fresh version data after release builds
         for playerName, member in pairs(self.memberData) do
-            if member.version == "preview" or member.version == "@project-version@" then
+            if member.version == "Unknown" then
                 if playerName == UnitName("player") then
                     -- Update local player to current version
-                    member.version = const.ADDON_VERSION or "1.0.0"
+                    member.version = const.ADDON_VERSION or "Unknown"
                 else
                     -- Mark other players as unknown until they sync fresh data
-                    member.version = "N/A"
+                    member.version = "Unknown"
                 end
             end
         end
@@ -578,7 +578,7 @@ function guildSync:SendHeartbeatSlice()
             name = playerName,
             class = className,
             classId = classId,
-            version = const.ADDON_VERSION or "1.0.0",
+            version = const.ADDON_VERSION or "Unknown",
             lastSeen = now,
             completions = slice,
         },
@@ -610,7 +610,7 @@ function guildSync:SendHello()
         name = playerName,
         class = className,
         classId = classId,
-        version = const.ADDON_VERSION or "1.0.0",
+        version = const.ADDON_VERSION or "Unknown",
         protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
         timestamp = time(),
     }, "GUILD")
@@ -802,7 +802,7 @@ function guildSync:StartVersionVerify(shortName, whisperTarget)
     comms:SendMessage(MSG_TYPE.VERREQ, {
         requestId = requestId,
         requester = UnitName("player"),
-        requesterVersion = const.ADDON_VERSION or "0.0.0",
+        requesterVersion = const.ADDON_VERSION or "Unknown",
         protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
         timestamp = now,
     }, "WHISPER", target)
@@ -833,7 +833,7 @@ function guildSync:OnVersionRequest(data)
     self:SyncLog("VersionNudge: received VERREQ from %s (requestId=%s)", tostring(sender), tostring(data.requestId))
     comms:SendMessage(MSG_TYPE.VERRESP, {
         requestId = data.requestId,
-        version = const.ADDON_VERSION or "0.0.0",
+        version = const.ADDON_VERSION or "Unknown",
         protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
         timestamp = time(),
     }, "WHISPER", sender)
@@ -872,7 +872,7 @@ function guildSync:OnVersionResponse(data)
         return
     end
 
-    local myVersion = const.ADDON_VERSION or "0.0.0"
+    local myVersion = const.ADDON_VERSION or "Unknown"
     local theirVersion = data.version or "?"
     local me = UnitName("player") or ""
 
@@ -1027,7 +1027,7 @@ function guildSync:SendSyncResponse(targetPlayer, requestId)
         name = playerName,
         class = className,
         classId = classId,
-        version = const.ADDON_VERSION or "1.0.0",
+        version = const.ADDON_VERSION or "Unknown",
         lastSeen = time(),
         completions = completions,
         totalPoints = totalPoints,
@@ -1596,7 +1596,7 @@ function guildSync:BroadcastCompletion(achievementId)
                 name = playerName,
                 class = className,
                 classId = 0,
-                version = const.ADDON_VERSION or "1.0.0",
+                version = const.ADDON_VERSION or "Unknown",
                 lastSeen = timestamp,
                 completions = completions,
                 completionVersions = completionVersions,
@@ -1606,7 +1606,7 @@ function guildSync:BroadcastCompletion(achievementId)
         else
             member.completions = completions
             member.completionVersions = completionVersions
-            member.version = const.ADDON_VERSION or "1.0.0"
+            member.version = const.ADDON_VERSION or "Unknown"
             member.lastSeen = timestamp
         end
         self:RecalculateMemberPoints(member)
@@ -1622,7 +1622,7 @@ function guildSync:BroadcastCompletion(achievementId)
         playerClass = className,
         protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
         timestamp = timestamp,
-        version = const.ADDON_VERSION or "1.0.0",
+        version = const.ADDON_VERSION or "Unknown",
     }, "GUILD")
 
     -- Save
@@ -1744,7 +1744,7 @@ function guildSync:GetRosterData(sortColumn, ascending)
         elseif sortColumn == "class" then
             aVal, bVal = (a.class or ""):lower(), (b.class or ""):lower()
         elseif sortColumn == "version" then
-            aVal, bVal = a.version or "N/A", b.version or "N/A"
+            aVal, bVal = a.version or "Unknown", b.version or "Unknown"
         elseif sortColumn == "lastSeen" then
             -- Online members should sort first/last based on direction
             -- Use current time for online members so they appear as "most recent"
@@ -1779,7 +1779,7 @@ function guildSync:GetMemberStats()
 
     for name, member in pairs(self.memberData) do
         total = total + 1
-        if member.version and member.version ~= "N/A" then
+        if member.version and member.version ~= "Unknown" then
             withAddon = withAddon + 1
         end
         if onlineMembers[name] then
