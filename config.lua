@@ -1780,20 +1780,17 @@ local ACHIEVEMENTS = {
 	{
 		id = 6006,
 		name = "Air Ball",
-		description = "Kill 25 Air Elementals in Outland",
+		description = "Loot 5 Primal Air (or 50 Mote of Air) in Outland",
 		points = 10,
 		category = 6,
 		subCategory = 60,
 		icon = 132845,
 		cadence = Enums.Cadence.Weekly,
 		trigger = {
-			event = "CREATURE_KILLED",
-			conditions = {
-				creatureName = { "Dust Howler", "Storm Rager", "Living Cyclone" },
-				zone = function(z) return z and OUTLAND_ZONES[z] end
-			}
+			event = "PRIMAL_LOOTED",
+			conditions = { itemName = { "Primal Air", "Mote of Air" } }
 		},
-		progress = { type = "count", required = 25 }
+		progress = { type = "either", required = 50 }
 	},
 	{
 		id = 6007,
