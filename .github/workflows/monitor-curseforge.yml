@@ -21,7 +21,7 @@ jobs:
       - name: Check CurseForge for new version
         id: check
         env:
-          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          CF_API_KEY: ${{ secrets.CF_REST_API_KEY }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           # Read last seen version if exists
