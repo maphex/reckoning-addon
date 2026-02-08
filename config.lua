@@ -1823,22 +1823,6 @@ local ACHIEVEMENTS = {
 		progress = { type = "count", required = 50 }
 	},
 	{
-		id = 6020,
-		name = "Water Me Up",
-		description = "Loot 50 Mote of Water in Outland",
-		points = 10,
-		category = 6,
-		subCategory = 60,
-		icon = 132852,
-		cadence = Enums.Cadence.Weekly,
-		startWeek = 1,
-		trigger = {
-			event = "ITEM_LOOTED",
-			conditions = { itemName = "Mote of Water" }
-		},
-		progress = { type = "count", required = 50 }
-	},
-	{
 		id = 6009,
 		name = "Line and Sinker",
 		description = "Catch 100 Fish",
@@ -2078,6 +2062,22 @@ local ACHIEVEMENTS = {
 				gatherType = Enums.GatherType.Mining,
 				itemName = { "Fel Iron Ore", "Adamantite Ore", "Khorium Ore" }
 			}
+		},
+		progress = { type = "count", required = 50 }
+	},
+	{
+		id = 6022,
+		name = "Water Me Up",
+		description = "Loot 50 Mote of Water in Outland",
+		points = 10,
+		category = 6,
+		subCategory = 60,
+		icon = 132852,
+		cadence = Enums.Cadence.Weekly,
+		startWeek = 1,
+		trigger = {
+			event = "ITEM_LOOTED",
+			conditions = { itemName = "Mote of Water" }
 		},
 		progress = { type = "count", required = 50 }
 	},
