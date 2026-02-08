@@ -1370,7 +1370,7 @@ function eventBridge:HandleLootMessage(message)
                 self:Fire("ITEM_LOOTED", {
                     itemId = itemId,
                     itemName = itemName,
-                    quantity = quantity,
+                    count = quantity,
                     zone = GetZoneText() or "Unknown",
                 })
             end
@@ -1402,6 +1402,7 @@ function eventBridge:HandleLootMessage(message)
                     itemId = itemId,
                     itemName = itemName,
                     gatherType = gatherType,
+                    count = quantity,
                 })
             end
 
