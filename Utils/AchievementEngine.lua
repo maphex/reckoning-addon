@@ -28,6 +28,12 @@ local engine = {
     lastWeek = 0,
     ---@type boolean -- Whether data has been loaded
     dataLoaded = false,
+    ---@type number -- Last time progress was broadcast to guild (crash recovery throttling)
+    lastProgressBroadcast = 0,
+    ---@type number -- Last time local achievement data was saved to SavedVariables (unix timestamp)
+    lastSavedAt = 0,
+    ---@type any|nil
+    progressBroadcastTimer = nil,
 }
 Private.AchievementEngine = engine
 
@@ -116,9 +122,12 @@ function engine:LoadProgress()
         self.lastWeek = 0
     end
 
+    -- Track when our local SavedVariables were last written (used for crash recovery freshness checks)
+    local db = addon and addon.Database
+    self.lastSavedAt = tonumber((data and data.savedAt) or (db and db.lastSaved) or 0) or 0
+
     -- Backfill completionVersions from existing db.completed or guild cache (fill-missing only, semver-parseable)
     local guildSync = Private.GuildSyncUtils
-    local db = addon and addon.Database
     local dbCompleted = db and db.completed
     local myName = (type(UnitName) == "function") and (UnitName("player") or ""):match("^([^%-]+)") or nil
     local guildMembers = (db and db.guildCache and db.guildCache.members) or {}
@@ -201,10 +210,211 @@ function engine:SaveProgress(silent)
         print("|cff00ff00[Reckoning] Achievement progress saved successfully!|r")
     end
 
+    if success then
+        self.lastSavedAt = tonumber(addon.Database and addon.Database.lastSaved) or tonumber(data.savedAt) or (tonumber(self.lastSavedAt) or 0)
+    end
+
     -- Also save explored zones from EventBridge
     if Private.EventBridge and Private.EventBridge.exploredZones then
         dbUtils:SaveExploredZones(Private.EventBridge.exploredZones)
     end
+end
+
+-------------------------------------------------------------------------------
+-- Crash Recovery (Distributed via Guild Cache)
+-------------------------------------------------------------------------------
+
+---Schedule a progress broadcast (throttled to avoid spam).
+---Called after achievement progress updates.
+function engine:ScheduleProgressBroadcast()
+    local now = time()
+    local MIN_INTERVAL = 300 -- 5 minutes
+
+    if (now - (tonumber(self.lastProgressBroadcast) or 0)) < MIN_INTERVAL then
+        return
+    end
+
+    -- Avoid extra comms during combat; this is not required for security, just a UX/perf guard.
+    if type(InCombatLockdown) == "function" and InCombatLockdown() then
+        return
+    end
+
+    -- Jitter broadcasts to avoid synchronized guild-wide bursts at the 5-min boundary.
+    if self.progressBroadcastTimer then
+        return
+    end
+
+    local jitterMin = 10
+    local jitterMax = 75
+    local delay = math.random(jitterMin, jitterMax)
+    if type(C_Timer) == "table" and C_Timer.NewTimer then
+        self.progressBroadcastTimer = C_Timer.NewTimer(delay, function()
+            self.progressBroadcastTimer = nil
+            self.lastProgressBroadcast = time()
+            self:BroadcastInProgressData()
+        end)
+    else
+        -- No timer API; fall back to immediate send
+        self.lastProgressBroadcast = now
+        self:BroadcastInProgressData()
+    end
+end
+
+---Broadcast in-progress data to guild for crash recovery.
+function engine:BroadcastInProgressData()
+    if type(IsInGuild) == "function" and not IsInGuild() then
+        return
+    end
+
+    local guildSync = Private.GuildSyncUtils
+    if not guildSync or not guildSync.BroadcastProgress then return end
+
+    local progress = {}
+    local criteria = {}
+
+    for achId, current in pairs(self.progressData or {}) do
+        if not self.completedAchievements[achId] and type(current) == "number" and current > 0 then
+            progress[achId] = current
+        end
+    end
+
+    for achId, crit in pairs(self.criteriaProgress or {}) do
+        if not self.completedAchievements[achId] and type(crit) == "table" and next(crit) then
+            criteria[achId] = crit
+        end
+    end
+
+    if not next(progress) and not next(criteria) then
+        return
+    end
+
+    guildSync:BroadcastProgress(next(progress) and progress or nil, next(criteria) and criteria or nil)
+end
+
+---Handle a distributed recovery response from a guild member.
+---Merges the data if newer than what we have on disk (SavedVariables timestamp).
+---@param data table {progress?, criteria?, lastActivityTimestamp, completions?, completionVersions?, week?}
+---@param sender string Who sent the response
+function engine:OnDistributedRecoveryResponse(data, sender)
+    if type(data) ~= "table" then return end
+
+    local remoteTs = tonumber(data.lastActivityTimestamp) or 0
+    if remoteTs <= 0 then return end
+
+    local addon = Private.Addon
+    if not addon or not addon.Database then return end
+
+    local dbUtils = Private.DatabaseUtils
+    if not dbUtils then return end
+
+    local localSavedAt = tonumber(self.lastSavedAt) or tonumber(addon.Database.lastSaved) or 0
+    if remoteTs <= localSavedAt then
+        return
+    end
+
+    -- Defense-in-depth: if the sender indicates this snapshot is from a previous week,
+    -- never restore weekly achievements/progress (prevents false positives from stale weekly caches).
+    local function isWeekly(achievementId)
+        local aUtils = Private.AchievementUtils
+        local Enums = Private.Enums
+        if not aUtils or not Enums or not Enums.Cadence then return nil end
+        local achievement = (aUtils.GetAchievement and aUtils:GetAchievement(achievementId)) or (aUtils.achievements and aUtils.achievements[achievementId])
+        if not achievement then return nil end
+        return achievement.cadence == Enums.Cadence.Weekly
+    end
+
+    local currentWeek = (dbUtils and dbUtils.GetCurrentWeek and dbUtils:GetCurrentWeek()) or 0
+    local remoteWeek = tonumber(data.week) or currentWeek
+    local isStaleWeek = (remoteWeek > 0 and currentWeek > 0 and remoteWeek < currentWeek)
+
+    local completionCount = 0
+    local progressCount = 0
+
+    -- Merge completions (keep newest timestamp)
+    if type(data.completions) == "table" then
+        for achId, ts in pairs(data.completions) do
+            local tnum = tonumber(ts) or 0
+            if tnum > 0 then
+                local skip = false
+                if isStaleWeek then
+                    local w = isWeekly(achId)
+                    -- Can't classify safely, or weekly: skip stale-week merges.
+                    if w == nil or w == true then
+                        skip = true
+                    end
+                end
+                if not skip then
+                    local localTimestamp = tonumber(self.completedTimestamps[achId]) or 0
+                    if not self.completedAchievements[achId] or localTimestamp < tnum then
+                        self.completedAchievements[achId] = true
+                        self.completedTimestamps[achId] = tnum
+                        if type(data.completionVersions) == "table" and data.completionVersions[achId] then
+                            self.completionVersions[achId] = tostring(data.completionVersions[achId])
+                        end
+                        completionCount = completionCount + 1
+                    end
+                end
+            end
+        end
+    end
+
+    -- Merge in-progress data
+    if type(data.progress) == "table" then
+        for achId, current in pairs(data.progress) do
+            if not self.completedAchievements[achId] then
+                local skip = false
+                if isStaleWeek then
+                    local w = isWeekly(achId)
+                    if w == nil or w == true then
+                        skip = true
+                    end
+                end
+                if not skip then
+                    self.progressData[achId] = current
+                    progressCount = progressCount + 1
+                end
+            end
+        end
+    end
+
+    -- Merge criteria
+    if type(data.criteria) == "table" then
+        for achId, crit in pairs(data.criteria) do
+            if not self.completedAchievements[achId] then
+                local skip = false
+                if isStaleWeek then
+                    local w = isWeekly(achId)
+                    if w == nil or w == true then
+                        skip = true
+                    end
+                end
+                if not skip then
+                    self.criteriaProgress[achId] = crit
+                end
+            end
+        end
+    end
+
+    if completionCount <= 0 and progressCount <= 0 then
+        return
+    end
+
+    if completionCount > 0 and dbUtils.RebuildCompletedFromEngine then
+        dbUtils:RebuildCompletedFromEngine(self.completedAchievements, self.completedTimestamps, self.completionVersions)
+    end
+
+    if addon and addon.Print then
+        if completionCount > 0 then
+            addon:Print("|cff00ff00[Crash Recovery] Restored " .. completionCount .. " completed achievements from " .. tostring(sender or "?") .. "!|r")
+        end
+        if progressCount > 0 then
+            addon:Print("|cffFFD700[Crash Recovery] Restored progress for " .. progressCount .. " achievements from " .. tostring(sender or "?") .. "!|r")
+        end
+    end
+
+    self:SyncUIFromLoadedData()
+    self:SaveProgress(true)
+    self.lastSavedAt = tonumber(addon.Database.lastSaved) or remoteTs
 end
 
 -------------------------------------------------------------------------------
@@ -343,6 +553,15 @@ function engine:OnWeeklyReset()
         timestamp = time(),
         week = Private.DatabaseUtils:GetCurrentWeek(),
     })
+
+    -- Clean cached weekly progress in guild cache (prevents stale crash recovery across weeks)
+    local guildSync = Private.GuildSyncUtils
+    if guildSync and guildSync.CleanupPreviousWeekCache then
+        guildSync:CleanupPreviousWeekCache()
+    end
+
+    -- Persist reset so weekly progress doesn't linger if we crash before logout
+    self:SaveProgress(true)
 end
 
 -------------------------------------------------------------------------------
@@ -505,6 +724,7 @@ function engine:EvaluateCriteriaSet(achievement, payload)
     else
         -- Update UI with partial progress
         self:UpdateUIProgress(achievement.id, self:CountCompletedCriteria(criteriaProgress), #criteriaSet)
+        self:ScheduleProgressBroadcast()
     end
 end
 
@@ -709,6 +929,7 @@ function engine:UpdateProgress(achievement, payload, event)
             self:CompleteAchievement(achievement)
         else
             self:UpdateUIProgress(achievement.id, best, required)
+            self:ScheduleProgressBroadcast()
         end
         return
     end
@@ -730,6 +951,7 @@ function engine:UpdateProgress(achievement, payload, event)
             self:CompleteAchievement(achievement)
         else
             self:UpdateUIProgress(achievement.id, current, progress.required)
+            self:ScheduleProgressBroadcast()
         end
         return
     end
@@ -764,6 +986,7 @@ function engine:UpdateProgress(achievement, payload, event)
             self:CompleteAchievement(achievement)
         else
             self:UpdateUIProgress(achievement.id, n, required)
+            self:ScheduleProgressBroadcast()
         end
     end
 end
@@ -797,6 +1020,7 @@ function engine:UpdateMetaProgress(achievement)
         self:CompleteAchievement(achievement)
     else
         self:UpdateUIProgress(achievement.id, count, required)
+        self:ScheduleProgressBroadcast()
     end
 end
 
