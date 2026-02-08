@@ -826,10 +826,12 @@ function eventBridge:HandleCombatLog(...)
         end
     end
 
-    -- Handle player killing blow in PvP
-    if subevent == "PARTY_KILL" and sourceGUID == playerGUID then
+    -- Handle killing blows
+    if subevent == "PARTY_KILL" then
         local destType = strsplit("-", destGUID)
-        if destType == "Player" then
+
+        -- PVP killing blows: only track player's own kills
+        if destType == "Player" and sourceGUID == playerGUID then
             self.pvpState.killingBlows = self.pvpState.killingBlows + 1
 
             local targetType = nil
@@ -850,8 +852,8 @@ function eventBridge:HandleCombatLog(...)
                 zone = GetZoneText() or "Unknown",
                 targetType = targetType,
             })
-        elseif destType == "Creature" then
-            -- Regular creature kill
+        -- Creature kills: track party/raid kills
+        elseif destType == "Creature" and self:IsPartyOrRaidMemberGUID(sourceGUID) then
             local npcId = self:GetNpcIdFromGUID(destGUID)
 
             self:Fire("CREATURE_KILLED", {
