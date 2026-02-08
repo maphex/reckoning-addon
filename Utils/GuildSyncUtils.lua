@@ -16,6 +16,11 @@ local const = Private.constants
 ---@field lastSeen number Unix timestamp of last seen
 ---@field completions table<number, number> achievementId -> timestamp
 ---@field completionVersions table<number, string>|nil achievementId -> addon version at completion (for correction gating)
+---@field inProgressData table<number, number>|nil achievementId -> current progress (crash recovery)
+---@field inProgressCriteria table<number, table>|nil achievementId -> criteria progress (crash recovery)
+---@field progressTimestamp number|nil Last time in-progress data was updated (unix timestamp)
+---@field lastActivityTimestamp number|nil Last time ANY activity happened (progress or completion)
+---@field week number|nil Week number associated with cached progress snapshot
 ---@field totalPoints number Total achievement points
 
 ---@class GuildEventData
@@ -42,10 +47,18 @@ local guildSync = {
     initialSyncDone = false,
     ---@type table Pending data chunks for large messages
     pendingChunks = {},
+    ---@type table Pending chunked progress snapshots (crash recovery)
+    pendingProgressChunks = {},
+    ---@type table Pending chunked progress responses (crash recovery)
+    pendingProgressResponseChunks = {},
     ---@type table<string, number> Requester name -> last response time (throttle)
     lastResponseToRequester = {},
     ---@type number Minimum seconds before sending another full response to same requester
     RESPONSE_COOLDOWN = 60,
+    ---@type table<string, number> Requester name -> last progress response time (throttle)
+    lastProgressResponseToRequester = {},
+    ---@type number Minimum seconds before sending another progress response to same requester
+    PROGRESS_RESPONSE_COOLDOWN = 60,
 
     ---------------------------------------------------------------------------
     -- Version update nudges (guild-coordinated)
@@ -268,6 +281,28 @@ function guildSync:CleanupPendingChunks()
     end
 end
 
+function guildSync:CleanupPendingProgressChunks()
+    local now = time()
+    local timeout = 75
+
+    local function cleanup(t)
+        for sender, requests in pairs(t) do
+            for requestId, state in pairs(requests) do
+                local lastUpdate = state.lastUpdate or state.startedAt or now
+                if (now - lastUpdate) > timeout then
+                    requests[requestId] = nil
+                end
+            end
+            if not next(requests) then
+                t[sender] = nil
+            end
+        end
+    end
+
+    cleanup(self.pendingProgressChunks)
+    cleanup(self.pendingProgressResponseChunks)
+end
+
 -- Message types for guild sync
 local MSG_TYPE = {
     SYNC_REQUEST = "GSYNC_REQ",       -- Request sync from guild
@@ -275,6 +310,11 @@ local MSG_TYPE = {
     SYNC_CHUNK = "GSYNC_CHUNK",       -- Chunked response with partial data
     HEARTBEAT = "GSYNC_HB",           -- Periodic incremental sync (small slices)
     COMPLETION = "GSYNC_COMP",        -- Single achievement completion broadcast
+    PROGRESS = "GSYNC_PROG",          -- In-progress data broadcast (crash recovery)
+    PROGRESS_REQUEST = "GSYNC_PREQ",  -- Request cached progress (crash recovery)
+    PROGRESS_RESPONSE = "GSYNC_PRESP",-- Response with cached progress (crash recovery, WHISPER)
+    PROGRESS_CHUNK = "GSYNC_PCHNK",   -- Chunked PROGRESS broadcast (if needed)
+    PROGRESS_RESPONSE_CHUNK = "GSYNC_PRCHNK", -- Chunked PROGRESS_RESPONSE (WHISPER)
     HELLO = "GSYNC_HELLO",            -- Announce presence on login
     VERREQ = "GSYNC_VERREQ",          -- Version verify request (WHISPER)
     VERRESP = "GSYNC_VERRESP",        -- Version verify response (WHISPER)
@@ -332,6 +372,26 @@ function guildSync:RegisterMessageHandlers()
 
     comms:AddCallback(MSG_TYPE.COMPLETION, function(data)
         self:OnCompletionReceived(data)
+    end)
+
+    comms:AddCallback(MSG_TYPE.PROGRESS, function(data)
+        self:OnProgressReceived(data)
+    end)
+
+    comms:AddCallback(MSG_TYPE.PROGRESS_CHUNK, function(data)
+        self:OnProgressChunk(data)
+    end)
+
+    comms:AddCallback(MSG_TYPE.PROGRESS_REQUEST, function(data)
+        self:OnProgressRequest(data)
+    end)
+
+    comms:AddCallback(MSG_TYPE.PROGRESS_RESPONSE, function(data)
+        self:OnProgressResponse(data)
+    end)
+
+    comms:AddCallback(MSG_TYPE.PROGRESS_RESPONSE_CHUNK, function(data)
+        self:OnProgressResponseChunk(data)
     end)
 
     comms:AddCallback(MSG_TYPE.HELLO, function(data)
@@ -451,6 +511,21 @@ function guildSync:OnPlayerLogin()
     -- Announce our presence
     self:SendHello()
 
+    -- Distributed crash recovery: ask guild if they have newer cached progress for us.
+    -- Guild members will only respond if their cached timestamp for us is newer than our local SavedVariables timestamp.
+    local addon = Private.Addon
+    local myLastSaved = tonumber(addon and addon.Database and addon.Database.lastSaved) or 0
+    local comms = Private.CommsUtils
+    if comms and comms.SendMessage then
+        comms:SendMessage(MSG_TYPE.PROGRESS_REQUEST, {
+            requestId = self:MakeRequestId(),
+            myLastSaved = myLastSaved,
+            protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
+            timestamp = time(),
+            priority = "BULK",
+        }, "GUILD")
+    end
+
     -- Request full sync after a short delay
     C_Timer.After(2, function()
         self:RequestFullSync()
@@ -481,6 +556,7 @@ function guildSync:StartHeartbeat()
         if (now - (self._pendingChunkCleanupLast or 0)) >= 15 then
             self._pendingChunkCleanupLast = now
             self:CleanupPendingChunks()
+            self:CleanupPendingProgressChunks()
         end
 
         -- Compute online count only when we're about to consider sending.
@@ -1334,17 +1410,24 @@ function guildSync:OnCompletionReceived(data)
     local senderShort = self:ShortNameFromSender(data.sender) or data.playerName
     if senderShort == UnitName("player") then return end
 
+    local ts = tonumber(data.timestamp) or time()
+
     -- Add the event
-    self:AddEvent(data.achievementId, senderShort, data.playerClass, data.timestamp or time())
+    self:AddEvent(data.achievementId, senderShort, data.playerClass, ts)
 
     -- Update member's completion data
     local member = self.memberData[senderShort]
     if member then
         member.completions = member.completions or {}
-        member.completions[data.achievementId] = data.timestamp or time()
+        member.completions[data.achievementId] = ts
         member.completionVersions = member.completionVersions or {}
         member.completionVersions[data.achievementId] = (data.version and tostring(data.version)) or member.version
         member.lastSeen = time()
+        member.lastActivityTimestamp = math.max(tonumber(member.lastActivityTimestamp) or 0, ts)
+        local dbUtils = Private.DatabaseUtils
+        if dbUtils and dbUtils.GetCurrentWeek then
+            member.week = dbUtils:GetCurrentWeek()
+        end
 
         self:RecalculateMemberPoints(member)
     end
@@ -1360,6 +1443,788 @@ function guildSync:OnCompletionReceived(data)
     end
 
     self:SyncLog("COMPLETION received: %s achievementId=%s", tostring(senderShort), tostring(data.achievementId))
+end
+
+-------------------------------------------------------------------------------
+-- Crash Recovery: Progress Broadcasting + Recovery Requests
+-------------------------------------------------------------------------------
+
+function guildSync:MakeRequestId()
+    local now = time()
+    return tostring(now) .. "-" .. tostring(math.random(100000, 999999))
+end
+
+function guildSync:CountOnlineMembers()
+    if not IsInGuild() then return 0 end
+    local numMembers = GetNumGuildMembers and GetNumGuildMembers() or 0
+    local online = 0
+    for i = 1, numMembers do
+        local _, _, _, _, _, _, _, _, isOnline = GetGuildRosterInfo(i)
+        if isOnline then
+            online = online + 1
+        end
+    end
+    return online
+end
+
+function guildSync:SimpleHash32(s)
+    if type(s) ~= "string" then
+        s = tostring(s or "")
+    end
+    local h = 5381
+    for i = 1, #s do
+        h = ((h * 33) + string.byte(s, i)) % 4294967296
+    end
+    return h
+end
+
+---Deterministically decide whether we should respond to a progress request.
+---Goal: avoid whisper stampedes in large guilds while still allowing recovery.
+---@param requesterShort string
+---@param onlineCount number
+---@return boolean
+function guildSync:ShouldRespondToProgressRequest(requesterShort, onlineCount)
+    onlineCount = tonumber(onlineCount) or 0
+    if onlineCount <= 10 then
+        return true
+    end
+
+    local me = UnitName("player") or ""
+    if me == "" then return true end
+
+    local key = tostring(requesterShort or "") .. "|" .. tostring(me)
+    local h = self:SimpleHash32(key)
+
+    -- Scale response rate by guild size.
+    -- Rough target responders:
+    -- 11-20 online: ~25%
+    -- 21-50 online: ~12.5%
+    -- 51+ online:   ~6.25% (about 5 responders in 80 online)
+    local mod = 16
+    if onlineCount <= 20 then
+        mod = 4
+    elseif onlineCount <= 50 then
+        mod = 8
+    else
+        mod = 16
+    end
+
+    return (h % mod) == 0
+end
+
+---@param subPrefix string
+---@param payload table
+---@param channel string
+---@param target string|nil
+---@param priority? "BULK"|"NORMAL"|"ALERT"
+---@return boolean sent
+function guildSync:TrySendEncoded(subPrefix, payload, channel, target, priority)
+    local comms = Private.CommsUtils
+    if not comms or not comms.Encode or not comms.SendEncodedMessage then return false end
+
+    payload = payload or {}
+    payload.subPrefix = subPrefix
+    payload.protocolVersion = payload.protocolVersion or const.ADDON_COMMS.PROTOCOL_VERSION
+
+    local encoded = comms:Encode(payload)
+    if not encoded then return false end
+    if #encoded > 255 then
+        return false
+    end
+
+    comms:SendEncodedMessage(subPrefix, encoded, channel, target, priority or payload.priority or "BULK")
+    return true
+end
+
+---Broadcast in-progress achievement data for crash recovery.
+---This is intended to be a full snapshot of all in-progress (non-zero) progress and criteria.
+---@param progress table<number, number>|nil achievementId -> current count
+---@param criteria table<number, table>|nil achievementId -> criteria progress
+function guildSync:BroadcastProgress(progress, criteria)
+    if not IsInGuild() then return end
+    if progress and type(progress) ~= "table" then return end
+    if criteria and type(criteria) ~= "table" then return end
+
+    -- Filter out empty data
+    local filteredProgress = {}
+    local filteredCriteria = {}
+
+    if progress then
+        for achId, current in pairs(progress) do
+            if type(achId) == "number" and type(current) == "number" and current > 0 then
+                filteredProgress[achId] = current
+            end
+        end
+    end
+
+    if criteria then
+        for achId, crit in pairs(criteria) do
+            if type(achId) == "number" and type(crit) == "table" and next(crit) then
+                filteredCriteria[achId] = crit
+            end
+        end
+    end
+
+    if not next(filteredProgress) and not next(filteredCriteria) then
+        return
+    end
+
+    local dbUtils = Private.DatabaseUtils
+    local currentWeek = (dbUtils and dbUtils.GetCurrentWeek and dbUtils:GetCurrentWeek()) or 0
+    local timestamp = time()
+
+    -- Update our own member cache (useful for roster UI + local debugging; not relied on for recovery)
+    local playerName = UnitName("player")
+    if playerName and playerName ~= "" then
+        local member = self.memberData[playerName]
+        if not member then
+            local _, className, classId = UnitClass("player")
+            member = {
+                name = playerName,
+                class = className or "Unknown",
+                classId = classId or 0,
+                version = const.ADDON_VERSION or "Unknown",
+                lastSeen = timestamp,
+                completions = {},
+                completionVersions = {},
+                totalPoints = 0,
+            }
+            self.memberData[playerName] = member
+        end
+        member.inProgressData = filteredProgress
+        member.inProgressCriteria = filteredCriteria
+        member.progressTimestamp = timestamp
+        member.lastActivityTimestamp = math.max(tonumber(member.lastActivityTimestamp) or 0, timestamp)
+        member.week = currentWeek
+        member.lastSeen = timestamp
+        self:SaveCachedData()
+    end
+
+    -- Try single message first; fall back to chunking if oversized
+    local basePayload = {
+        progress = filteredProgress,
+        criteria = filteredCriteria,
+        week = currentWeek,
+        timestamp = timestamp,
+        priority = "BULK",
+    }
+
+    if self:TrySendEncoded(MSG_TYPE.PROGRESS, basePayload, "GUILD", nil, "BULK") then
+        return
+    end
+
+    self:SendProgressSnapshotChunked(MSG_TYPE.PROGRESS_CHUNK, basePayload, "GUILD", nil)
+end
+
+---Send a potentially-large progress snapshot as chunked addon messages (≤255 encoded).
+---@param chunkPrefix string MSG_TYPE.PROGRESS_CHUNK or MSG_TYPE.PROGRESS_RESPONSE_CHUNK
+---@param basePayload table Contains progress/criteria/(optional completions/completionVersions) + metadata like week/timestamp/requestId
+---@param channel string
+---@param target string|nil
+function guildSync:SendProgressSnapshotChunked(chunkPrefix, basePayload, channel, target)
+    local comms = Private.CommsUtils
+    if not comms or not comms.Encode or not comms.SendEncodedMessage then return end
+
+    local requestId = basePayload.requestId or self:MakeRequestId()
+    local timestamp = tonumber(basePayload.timestamp) or time()
+    local week = tonumber(basePayload.week) or 0
+    local progress = basePayload.progress or {}
+    local criteria = basePayload.criteria or {}
+    local completions = basePayload.completions or {}
+    local completionVersions = basePayload.completionVersions or {}
+
+    -- Build a union of all achievement IDs present in any map
+    local ids = {}
+    local seen = {}
+    for id in pairs(progress) do
+        if type(id) == "number" and not seen[id] then
+            seen[id] = true
+            table.insert(ids, id)
+        end
+    end
+    for id in pairs(criteria) do
+        if type(id) == "number" and not seen[id] then
+            seen[id] = true
+            table.insert(ids, id)
+        end
+    end
+    for id in pairs(completions) do
+        if type(id) == "number" and not seen[id] then
+            seen[id] = true
+            table.insert(ids, id)
+        end
+    end
+    table.sort(ids)
+
+    local total = #ids
+    if total == 0 then return end
+
+    local seq = 1
+    local idx = 1
+    local batchSize = 40
+
+    while idx <= total do
+        local take = math.min(batchSize, total - idx + 1)
+        local payload, encoded
+        local skippedThisId = false
+
+        while take > 0 do
+            local pSlice = {}
+            local cSlice = {}
+            local compSlice = {}
+            local verSlice = {}
+
+            for i = idx, (idx + take - 1) do
+                local id = ids[i]
+                if progress[id] ~= nil then
+                    pSlice[id] = progress[id]
+                end
+                if criteria[id] ~= nil then
+                    cSlice[id] = criteria[id]
+                end
+                if completions[id] ~= nil then
+                    compSlice[id] = completions[id]
+                end
+                if completionVersions[id] ~= nil then
+                    verSlice[id] = completionVersions[id]
+                end
+            end
+
+            payload = {
+                subPrefix = chunkPrefix,
+                protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
+                requestId = requestId,
+                seq = seq,
+                isLast = (idx + take - 1) >= total,
+                -- Snapshot data (partial)
+                progress = next(pSlice) and pSlice or nil,
+                criteria = next(cSlice) and cSlice or nil,
+                completions = next(compSlice) and compSlice or nil,
+                completionVersions = next(verSlice) and verSlice or nil,
+                -- Metadata
+                lastActivityTimestamp = tonumber(basePayload.lastActivityTimestamp) or nil,
+                week = week,
+                timestamp = timestamp,
+            }
+
+            encoded = comms:Encode(payload)
+            if encoded and #encoded <= 255 then
+                break
+            end
+
+            take = take - 1
+        end
+
+        -- If we can't fit even a single achievement ID, fall back by dropping the heaviest fields.
+        -- This avoids total failure and prevents stale/incorrect crash recovery data.
+        if take <= 0 or not encoded then
+            local id = ids[idx]
+            if not id then return end
+
+            local pSlice = {}
+            local cSlice = {}
+            local compSlice = {}
+            local verSlice = {}
+
+            if progress[id] ~= nil then pSlice[id] = progress[id] end
+            if criteria[id] ~= nil then cSlice[id] = criteria[id] end
+            if completions[id] ~= nil then compSlice[id] = completions[id] end
+            if completionVersions[id] ~= nil then verSlice[id] = completionVersions[id] end
+
+            local function tryVariant(includeCriteria, includeVersions)
+                local p = {
+                    subPrefix = chunkPrefix,
+                    protocolVersion = const.ADDON_COMMS.PROTOCOL_VERSION,
+                    requestId = requestId,
+                    seq = seq,
+                    isLast = (idx >= total),
+                    progress = next(pSlice) and pSlice or nil,
+                    criteria = (includeCriteria and next(cSlice)) and cSlice or nil,
+                    completions = next(compSlice) and compSlice or nil,
+                    completionVersions = (includeVersions and next(verSlice)) and verSlice or nil,
+                    lastActivityTimestamp = tonumber(basePayload.lastActivityTimestamp) or nil,
+                    week = week,
+                    timestamp = timestamp,
+                }
+                local e = comms:Encode(p)
+                if e and #e <= 255 then
+                    return p, e
+                end
+                return nil, nil
+            end
+
+            -- Try progressively smaller: drop criteria first, then drop versions too.
+            payload, encoded = tryVariant(true, true)
+            if not encoded then
+                payload, encoded = tryVariant(false, true)
+            end
+            if not encoded then
+                payload, encoded = tryVariant(false, false)
+            end
+
+            if not encoded then
+                local debugUtils = Private.DebugUtils
+                if debugUtils then
+                    debugUtils:Log("COMMS", "CrashRecovery: dropped oversized snapshot entry (id=%s prefix=%s)", tostring(id), tostring(chunkPrefix))
+                end
+                -- Skip this id to avoid stalling; snapshot semantics mean omission clears stale entries on receiver.
+                idx = idx + 1
+                seq = seq + 1
+                skippedThisId = true
+            else
+                local debugUtils = Private.DebugUtils
+                if debugUtils and next(cSlice) and (payload.criteria == nil) then
+                    debugUtils:Log("COMMS", "CrashRecovery: criteria omitted due to size (id=%s prefix=%s)", tostring(id), tostring(chunkPrefix))
+                end
+                take = 1
+            end
+        end
+
+        if not skippedThisId then
+            comms:SendEncodedMessage(chunkPrefix, encoded, channel, target, basePayload.priority or "BULK")
+
+            idx = idx + take
+            seq = seq + 1
+        end
+    end
+end
+
+function guildSync:EnsureMemberExists(name)
+    if not name or name == "" then return nil end
+    local member = self.memberData[name]
+    if member then return member end
+    member = {
+        name = name,
+        class = "Unknown",
+        classId = 0,
+        version = "Unknown",
+        lastSeen = time(),
+        completions = {},
+        completionVersions = {},
+        totalPoints = 0,
+    }
+    self.memberData[name] = member
+    return member
+end
+
+---Receive single-message progress snapshot.
+function guildSync:OnProgressReceived(data)
+    if not data then return end
+    if not self:IsProtocolCompatible(data) then return end
+
+    local senderShort = self:ShortNameFromSender(data.sender)
+    if not senderShort or senderShort == "" then return end
+    if senderShort == UnitName("player") then return end
+
+    local ts = tonumber(data.timestamp) or 0
+    local week = tonumber(data.week) or 0
+
+    local progress = (type(data.progress) == "table") and data.progress or nil
+    local criteria = (type(data.criteria) == "table") and data.criteria or nil
+    if not progress and not criteria then return end
+
+    local member = self:EnsureMemberExists(senderShort)
+    if not member then return end
+
+    -- Full snapshot semantics: replace tables to avoid stale entries lingering.
+    member.inProgressData = progress or nil
+    member.inProgressCriteria = criteria or nil
+    member.progressTimestamp = ts
+    member.lastActivityTimestamp = math.max(tonumber(member.lastActivityTimestamp) or 0, ts)
+    member.week = week
+    member.lastSeen = time()
+
+    self:SaveCachedData()
+    self:NotifyUIUpdate()
+end
+
+---Receive chunked progress snapshot (full snapshot assembled when all chunks arrive).
+function guildSync:OnProgressChunk(data)
+    if not data then return end
+    if not self:IsProtocolCompatible(data) then return end
+
+    local sender = data.sender
+    if not sender then return end
+    local senderShort = self:ShortNameFromSender(sender)
+    if not senderShort or senderShort == "" then return end
+    if senderShort == UnitName("player") then return end
+
+    local requestId = tostring(data.requestId or "")
+    if requestId == "" then return end
+    local seq = tonumber(data.seq or 0) or 0
+    if seq <= 0 then return end
+
+    self.pendingProgressChunks[sender] = self.pendingProgressChunks[sender] or {}
+    local state = self.pendingProgressChunks[sender][requestId]
+    if not state then
+        state = {
+            startedAt = time(),
+            lastUpdate = time(),
+            received = {},
+            lastSeq = nil,
+            progress = {},
+            criteria = {},
+            timestamp = tonumber(data.timestamp) or 0,
+            week = tonumber(data.week) or 0,
+        }
+        self.pendingProgressChunks[sender][requestId] = state
+    end
+
+    if state.received[seq] then
+        return
+    end
+    state.received[seq] = true
+    state.lastUpdate = time()
+
+    if data.isLast then
+        state.lastSeq = seq
+    end
+
+    if type(data.progress) == "table" then
+        for achId, v in pairs(data.progress) do
+            state.progress[achId] = v
+        end
+    end
+    if type(data.criteria) == "table" then
+        for achId, v in pairs(data.criteria) do
+            state.criteria[achId] = v
+        end
+    end
+
+    -- Finalize only when all chunks received so snapshot replacement is safe.
+    if state.lastSeq then
+        for i = 1, state.lastSeq do
+            if not state.received[i] then
+                return
+            end
+        end
+
+        local member = self:EnsureMemberExists(senderShort)
+        if not member then return end
+
+        member.inProgressData = next(state.progress) and state.progress or nil
+        member.inProgressCriteria = next(state.criteria) and state.criteria or nil
+        member.progressTimestamp = state.timestamp
+        member.lastActivityTimestamp = math.max(tonumber(member.lastActivityTimestamp) or 0, tonumber(state.timestamp) or 0)
+        member.week = state.week
+        member.lastSeen = time()
+
+        self.pendingProgressChunks[sender][requestId] = nil
+        if not next(self.pendingProgressChunks[sender]) then
+            self.pendingProgressChunks[sender] = nil
+        end
+
+        self:SaveCachedData()
+        self:NotifyUIUpdate()
+    end
+end
+
+---Handle a progress recovery request from a guild member (sent to GUILD).
+function guildSync:OnProgressRequest(data)
+    if not data then return end
+    if not self:IsProtocolCompatible(data) then return end
+    if not IsInGuild() then return end
+
+    local requester = data.sender
+    if not requester or requester == "" then return end
+
+    local onlineCount = self:CountOnlineMembers()
+    local requesterShort = self:ShortNameFromSender(requester)
+    if not requesterShort or requesterShort == "" then return end
+
+    -- Deterministic election to prevent whisper stampedes in large guilds.
+    if not self:ShouldRespondToProgressRequest(requesterShort, onlineCount) then
+        return
+    end
+
+    local now = time()
+    local last = self.lastProgressResponseToRequester[requester]
+    if last and (now - last) < (self.PROGRESS_RESPONSE_COOLDOWN or 60) then
+        return
+    end
+    self.lastProgressResponseToRequester[requester] = now
+
+    local theirLastSaved = tonumber(data.myLastSaved) or 0
+    local requestId = data.requestId or self:MakeRequestId()
+
+    local cachedData = self.memberData[requesterShort]
+    if not cachedData then return end
+
+    local ourCachedTimestamp = tonumber(cachedData.lastActivityTimestamp) or tonumber(cachedData.progressTimestamp) or 0
+    if ourCachedTimestamp <= theirLastSaved then
+        return
+    end
+
+    local dbUtils = Private.DatabaseUtils
+    local currentWeek = (dbUtils and dbUtils.GetCurrentWeek and dbUtils:GetCurrentWeek()) or 0
+    local cachedWeek = tonumber(cachedData.week) or currentWeek
+
+    local function isWeekly(achievementId)
+        local aUtils = Private.AchievementUtils
+        local Enums = Private.Enums
+        if not aUtils or not Enums or not Enums.Cadence then return nil end
+        local achievement = (aUtils.GetAchievement and aUtils:GetAchievement(achievementId)) or (aUtils.achievements and aUtils.achievements[achievementId])
+        if not achievement then return nil end
+        return achievement.cadence == Enums.Cadence.Weekly
+    end
+
+    -- Filter completions to only those newer than their last saved timestamp.
+    local completionsNew = nil
+    local completionVersionsNew = nil
+    if type(cachedData.completions) == "table" then
+        for achId, ts in pairs(cachedData.completions) do
+            if type(ts) == "number" and ts > theirLastSaved then
+                if cachedWeek < currentWeek then
+                    local w = isWeekly(achId)
+                    if w == nil or w == true then
+                        -- Can't safely classify or is weekly: do not restore from prior week
+                        -- skip
+                    else
+                        completionsNew = completionsNew or {}
+                        completionsNew[achId] = ts
+                        if type(cachedData.completionVersions) == "table" and cachedData.completionVersions[achId] then
+                            completionVersionsNew = completionVersionsNew or {}
+                            completionVersionsNew[achId] = cachedData.completionVersions[achId]
+                        end
+                    end
+                else
+                    completionsNew = completionsNew or {}
+                    completionsNew[achId] = ts
+                    if type(cachedData.completionVersions) == "table" and cachedData.completionVersions[achId] then
+                        completionVersionsNew = completionVersionsNew or {}
+                        completionVersionsNew[achId] = cachedData.completionVersions[achId]
+                    end
+                end
+            end
+        end
+    end
+
+    local progress = type(cachedData.inProgressData) == "table" and cachedData.inProgressData or nil
+    local criteria = type(cachedData.inProgressCriteria) == "table" and cachedData.inProgressCriteria or nil
+
+    if cachedWeek < currentWeek then
+        -- Filter weekly progress snapshots from old weeks, but keep non-weekly progress.
+        if progress and next(progress) then
+            local filtered = {}
+            for achId, current in pairs(progress) do
+                local w = isWeekly(achId)
+                if w == false then
+                    filtered[achId] = current
+                end
+            end
+            progress = next(filtered) and filtered or nil
+        end
+        if criteria and next(criteria) then
+            local filtered = {}
+            for achId, crit in pairs(criteria) do
+                local w = isWeekly(achId)
+                if w == false then
+                    filtered[achId] = crit
+                end
+            end
+            criteria = next(filtered) and filtered or nil
+        end
+    end
+
+    if not (completionsNew and next(completionsNew)) and not (progress and next(progress)) and not (criteria and next(criteria)) then
+        return
+    end
+
+    local responseBase = {
+        requestId = requestId,
+        progress = progress,
+        criteria = criteria,
+        completions = completionsNew,
+        completionVersions = completionVersionsNew,
+        lastActivityTimestamp = ourCachedTimestamp,
+        week = cachedWeek,
+        timestamp = time(),
+        priority = "BULK",
+    }
+
+    local delay = math.random(0, 60000) / 1000
+    C_Timer.After(delay, function()
+        -- Try single response; fall back to chunking if oversized.
+        if self:TrySendEncoded(MSG_TYPE.PROGRESS_RESPONSE, responseBase, "WHISPER", requester, "BULK") then
+            return
+        end
+        self:SendProgressSnapshotChunked(MSG_TYPE.PROGRESS_RESPONSE_CHUNK, responseBase, "WHISPER", requester)
+    end)
+end
+
+---Handle a single-message progress recovery response (WHISPER).
+function guildSync:OnProgressResponse(data)
+    if not data then return end
+    if not self:IsProtocolCompatible(data) then return end
+
+    local senderShort = self:ShortNameFromSender(data.sender) or "unknown"
+    local engine = Private.AchievementEngine
+    if engine and engine.OnDistributedRecoveryResponse then
+        engine:OnDistributedRecoveryResponse(data, senderShort)
+    end
+end
+
+---Handle a chunked progress recovery response (WHISPER).
+function guildSync:OnProgressResponseChunk(data)
+    if not data then return end
+    if not self:IsProtocolCompatible(data) then return end
+
+    local sender = data.sender
+    if not sender then return end
+    local senderShort = self:ShortNameFromSender(sender) or "unknown"
+
+    local requestId = tostring(data.requestId or "")
+    if requestId == "" then return end
+    local seq = tonumber(data.seq or 0) or 0
+    if seq <= 0 then return end
+
+    self.pendingProgressResponseChunks[sender] = self.pendingProgressResponseChunks[sender] or {}
+    local state = self.pendingProgressResponseChunks[sender][requestId]
+    if not state then
+        state = {
+            startedAt = time(),
+            lastUpdate = time(),
+            received = {},
+            lastSeq = nil,
+            data = {
+                progress = {},
+                criteria = {},
+                completions = {},
+                completionVersions = {},
+            },
+        }
+        self.pendingProgressResponseChunks[sender][requestId] = state
+    end
+
+    if state.received[seq] then
+        return
+    end
+    state.received[seq] = true
+    state.lastUpdate = time()
+
+    if data.isLast then
+        state.lastSeq = seq
+    end
+
+    local st = state.data
+    if type(data.progress) == "table" then
+        for achId, v in pairs(data.progress) do
+            st.progress[achId] = v
+        end
+    end
+    if type(data.criteria) == "table" then
+        for achId, v in pairs(data.criteria) do
+            st.criteria[achId] = v
+        end
+    end
+    if type(data.completions) == "table" then
+        for achId, v in pairs(data.completions) do
+            st.completions[achId] = v
+        end
+    end
+    if type(data.completionVersions) == "table" then
+        for achId, v in pairs(data.completionVersions) do
+            st.completionVersions[achId] = v
+        end
+    end
+
+    st.lastActivityTimestamp = tonumber(data.lastActivityTimestamp) or st.lastActivityTimestamp
+    st.week = tonumber(data.week) or st.week
+
+    if state.lastSeq then
+        for i = 1, state.lastSeq do
+            if not state.received[i] then
+                return
+            end
+        end
+
+        -- Collapse empty tables to nil for engine-side checks.
+        if not next(st.progress) then st.progress = nil end
+        if not next(st.criteria) then st.criteria = nil end
+        if not next(st.completions) then st.completions = nil end
+        if not next(st.completionVersions) then st.completionVersions = nil end
+
+        local engine = Private.AchievementEngine
+        if engine and engine.OnDistributedRecoveryResponse then
+            engine:OnDistributedRecoveryResponse(st, senderShort)
+        end
+
+        self.pendingProgressResponseChunks[sender][requestId] = nil
+        if not next(self.pendingProgressResponseChunks[sender]) then
+            self.pendingProgressResponseChunks[sender] = nil
+        end
+    end
+end
+
+---Clean cached weekly progress from prior weeks while preserving non-weekly progress.
+---This prevents old weekly progress from being used for crash recovery after a weekly reset.
+function guildSync:CleanupPreviousWeekCache()
+    local dbUtils = Private.DatabaseUtils
+    local aUtils = Private.AchievementUtils
+    local Enums = Private.Enums
+    if not dbUtils or not dbUtils.GetCurrentWeek then return end
+
+    local currentWeek = dbUtils:GetCurrentWeek()
+    local cleanedMembers = 0
+
+    for _, member in pairs(self.memberData or {}) do
+        local cachedWeek = tonumber(member.week) or currentWeek
+        if cachedWeek < currentWeek then
+            local changed = false
+
+            -- If we can't classify achievements safely, be conservative and wipe cached progress snapshots
+            -- from prior weeks (prevents stale weekly progress false positives).
+            if not aUtils or not Enums or not Enums.Cadence then
+                if member.inProgressData ~= nil or member.inProgressCriteria ~= nil then
+                    member.inProgressData = nil
+                    member.inProgressCriteria = nil
+                    member.progressTimestamp = nil
+                    member.lastActivityTimestamp = nil
+                    member.week = currentWeek
+                    cleanedMembers = cleanedMembers + 1
+                end
+            else
+
+            if type(member.inProgressData) == "table" then
+                for achId in pairs(member.inProgressData) do
+                    local achievement = (aUtils.GetAchievement and aUtils:GetAchievement(achId)) or (aUtils.achievements and aUtils.achievements[achId])
+                    if achievement and achievement.cadence == Enums.Cadence.Weekly then
+                        member.inProgressData[achId] = nil
+                        changed = true
+                    end
+                end
+                if not next(member.inProgressData) then
+                    member.inProgressData = nil
+                    changed = true
+                end
+            end
+
+            if type(member.inProgressCriteria) == "table" then
+                for achId in pairs(member.inProgressCriteria) do
+                    local achievement = (aUtils.GetAchievement and aUtils:GetAchievement(achId)) or (aUtils.achievements and aUtils.achievements[achId])
+                    if achievement and achievement.cadence == Enums.Cadence.Weekly then
+                        member.inProgressCriteria[achId] = nil
+                        changed = true
+                    end
+                end
+                if not next(member.inProgressCriteria) then
+                    member.inProgressCriteria = nil
+                    changed = true
+                end
+            end
+
+            if changed then
+                member.week = currentWeek
+                cleanedMembers = cleanedMembers + 1
+            end
+            end
+        end
+    end
+
+    if cleanedMembers > 0 then
+        self:SaveCachedData()
+        self:SyncLog("Cleaned weekly cached progress for %d members (week=%d)", cleanedMembers, currentWeek)
+    end
 end
 
 function guildSync:OnHeartbeat(data)
@@ -1839,6 +2704,17 @@ function guildSync:NotifyUIUpdate()
             cb:Trigger()
         end
     end
+end
+
+---Recalculate total points for all cached members.
+---Used when corrections/version-gates change so the roster updates immediately.
+function guildSync:RecalculateAllMemberPoints()
+    if not self.memberData then return end
+    for _, member in pairs(self.memberData) do
+        self:RecalculateMemberPoints(member)
+    end
+    self:SaveCachedData()
+    self:NotifyUIUpdate()
 end
 
 ---Stop the heartbeat ticker (e.g. when leaving guild). Safe to call when not running.

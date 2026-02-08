@@ -284,6 +284,16 @@ function correctionSync:CreateCorrection(achievementId, correctionType, opts)
         if t then t.revertedByCorrectionId = id end
     end
     self:SaveCachedCorrections()
+
+    -- Recompute cached member totals + refresh UI immediately (points can change without changing completion state)
+    local gs = Private.GuildSyncUtils
+    if gs and gs.RecalculateAllMemberPoints then
+        gs:RecalculateAllMemberPoints()
+    end
+    if ReckoningAchievementFrame_Refresh then
+        ReckoningAchievementFrame_Refresh()
+    end
+
     return correction
 end
 
@@ -391,6 +401,15 @@ function correctionSync:OnCorrectionCreate(data)
         end
     end
     self:SaveCachedCorrections()
+
+    -- Correction affects scoring; recalc roster points + refresh frame points display
+    local gs = Private.GuildSyncUtils
+    if gs and gs.RecalculateAllMemberPoints then
+        gs:RecalculateAllMemberPoints()
+    end
+    if ReckoningAchievementFrame_Refresh then
+        ReckoningAchievementFrame_Refresh()
+    end
 end
 
 function correctionSync:RequestCorrections()
@@ -457,6 +476,15 @@ function correctionSync:OnCorrectionResponse(data)
         end
     end
     self:SaveCachedCorrections()
+
+    -- Correction affects scoring; recalc roster points + refresh frame points display
+    local gs = Private.GuildSyncUtils
+    if gs and gs.RecalculateAllMemberPoints then
+        gs:RecalculateAllMemberPoints()
+    end
+    if ReckoningAchievementFrame_Refresh then
+        ReckoningAchievementFrame_Refresh()
+    end
 end
 
 -------------------------------------------------------------------------------
