@@ -903,6 +903,12 @@ end
 ---@param achievement Achievement
 function engine:CompleteAchievement(achievement)
     local achievementId = achievement.id
+
+    -- One-time achievements must not complete more than once
+    if self.completedAchievements[achievementId] then
+        return
+    end
+
     local debugUtils = Private.DebugUtils
 
     -- Debug log completion
