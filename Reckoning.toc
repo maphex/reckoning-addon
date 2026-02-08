@@ -8,7 +8,7 @@
 ## X-Curse-Project-ID: 1453511
 
 BindingNames.lua
-Bindings.xml
+Bindings.lua
 embed.xml
 
 ReckoningAchievementFrame.lua
