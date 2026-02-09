@@ -44,7 +44,7 @@ local Enums = Private.Enums
 ---| "PLAYER_DIED"
 ---| "WEEKLY_RESET"
 ---| "ACHIEVEMENT_COMPLETED"
----| "RUNNING_2_MINUTES"
+---| "RUNNING_5_MINUTES"
 
 -------------------------------------------------------------------------------
 -- Boss Tracking Data (TBC bosses by instance)
@@ -366,7 +366,7 @@ function eventBridge:Init()
         targetItem = nil,
     }
 
-    -- Easter egg: run 2 minutes nonstop (only track until achievement 9001 is completed)
+    -- Easter egg: run 5 minutes nonstop (only track until achievement 9001 is completed)
     self.runningState = {
         seconds = 0,
         FAST_AF_BOIII_ACHIEVEMENT_ID = 9001,
@@ -717,7 +717,7 @@ function eventBridge:HandleFallUpdate(elapsed)
 end
 
 -------------------------------------------------------------------------------
--- Running 2 minutes nonstop (Easter egg: Fast AF BOIII)
+-- Running 5 minutes nonstop (Easter egg: Fast AF BOIII)
 -- Only runs while achievement 9001 is not completed; stops tracking after completion.
 -------------------------------------------------------------------------------
 function eventBridge:HandleRunningUpdate(elapsed)
@@ -751,9 +751,9 @@ function eventBridge:HandleRunningUpdate(elapsed)
     end
 
     self.runningState.seconds = (self.runningState.seconds or 0) + elapsed
-    if self.runningState.seconds >= 120 then
+    if self.runningState.seconds >= 300 then
         self.runningState.seconds = 0
-        self:Fire("RUNNING_2_MINUTES", {})
+        self:Fire("RUNNING_5_MINUTES", {})
     end
 end
 
@@ -853,17 +853,39 @@ function eventBridge:HandleCombatLog(...)
                 targetType = targetType,
                 battleground = self.pvpState.inBattleground and self.pvpState.bgName or nil,
             })
-        -- Creature kills: track party/raid kills
-        elseif destType == "Creature" and self:IsPartyOrRaidMemberGUID(sourceGUID) then
-            local npcId = self:GetNpcIdFromGUID(destGUID)
+        -- Creature kills: count party/raid kills including pets/guardians (Monster Hunter, Fel Down, Stern Durn, etc.)
+        elseif destType == "Creature" then
+            local function isGroupAffiliated(flags)
+                flags = tonumber(flags) or 0
+                local band = (type(bit) == "table" and type(bit.band) == "function") and bit.band
+                    or (type(bit32) == "table" and type(bit32.band) == "function") and bit32.band
+                if not band then return false end
+                local mine = _G.COMBATLOG_OBJECT_AFFILIATION_MINE   -- player or controlled unit (e.g. pet)
+                local party = _G.COMBATLOG_OBJECT_AFFILIATION_PARTY
+                local raid = _G.COMBATLOG_OBJECT_AFFILIATION_RAID
+                if not mine or not party or not raid then return false end
+                return band(flags, mine) ~= 0 or band(flags, party) ~= 0 or band(flags, raid) ~= 0
+            end
+            if self:IsPartyOrRaidMemberGUID(sourceGUID) or isGroupAffiliated(sourceFlags) then
+                local npcId = self:GetNpcIdFromGUID(destGUID)
+                local isPlayerKill = (sourceGUID == playerGUID)
+                -- isPlayerPetKill: kill by player's pet/guardian (MINE affiliation but not player GUID)
+                local band = (type(bit) == "table" and type(bit.band) == "function") and bit.band
+                    or (type(bit32) == "table" and type(bit32.band) == "function") and bit32.band
+                local mine = band and _G.COMBATLOG_OBJECT_AFFILIATION_MINE
+                local isPlayerPetKill = not isPlayerKill and mine and band(tonumber(sourceFlags) or 0, mine) ~= 0
 
-            self:Fire("CREATURE_KILLED", {
-                creatureName = destName,
-                creatureId = npcId,
-                level = Private.UnitCache:GetLevelByGUID(destGUID),
-                creatureType = Private.UnitCache:GetCreatureTypeByGUID(destGUID),
-                zone = GetZoneText() or "Unknown",
-            })
+                self:Fire("CREATURE_KILLED", {
+                    creatureName = destName,
+                    creatureId = npcId,
+                    level = Private.UnitCache:GetLevelByGUID(destGUID),
+                    creatureType = Private.UnitCache:GetCreatureTypeByGUID(destGUID),
+                    zone = GetZoneText() or "Unknown",
+                    -- Optional: conditions = { isPlayerKill = true } for "player killing blow only" achievements
+                    isPlayerKill = isPlayerKill,
+                    isPlayerPetKill = isPlayerPetKill,
+                })
+            end
         end
     end
 
@@ -1360,13 +1382,62 @@ function eventBridge:HandleLootMessage(message)
         })
     end
 
-    -- Parse loot message for item
-    -- Pattern: "You receive loot: |cff...|Hitem:ITEMID:...|h[Item Name]|h|r"
-    local itemLink = message:match("You receive loot: (|c%x+|Hitem:.-|h%[.-%]|h|r)")
+    -- Parse loot message for item (locale-safe)
+    -- Prefer localized global strings (LOOT_ITEM_SELF*, LOOT_ITEM_PUSHED_SELF*) to avoid English-only matching.
+    local function EscapeLuaPattern(s)
+        return (s:gsub("([%(%)%.%%%+%-%*%?%[%]%^%$])", "%%%1"))
+    end
+
+    local function FormatToPattern(fmt)
+        if type(fmt) ~= "string" or fmt == "" then return nil end
+        -- Preserve literal %% then replace WoW printf tokens.
+        -- Note: We use Lua patterns where '%%' matches a literal '%'.
+        fmt = fmt:gsub("%%%%", "{PERCENT}")
+        -- Handle positional forms like %1$s / %2$d (common in some locales).
+        fmt = fmt:gsub("%%(%d+)%$([sd])", function(_, t)
+            return (t == "s") and "{STR}" or "{NUM}"
+        end)
+        -- Handle non-positional %s / %d.
+        fmt = fmt:gsub("%%([sd])", function(t)
+            return (t == "s") and "{STR}" or "{NUM}"
+        end)
+        fmt = EscapeLuaPattern(fmt)
+        fmt = fmt:gsub("{STR}", "(.+)")
+        fmt = fmt:gsub("{NUM}", "(%%d+)")
+        fmt = fmt:gsub("{PERCENT}", "%%")
+        return "^" .. fmt .. "$"
+    end
+
+    local function ParseSelfLootMessage(msg)
+        if type(msg) ~= "string" or msg == "" then return nil, nil end
+
+        local patterns = {}
+        if type(LOOT_ITEM_SELF_MULTIPLE) == "string" then patterns[#patterns + 1] = FormatToPattern(LOOT_ITEM_SELF_MULTIPLE) end
+        if type(LOOT_ITEM_PUSHED_SELF_MULTIPLE) == "string" then patterns[#patterns + 1] = FormatToPattern(LOOT_ITEM_PUSHED_SELF_MULTIPLE) end
+        if type(LOOT_ITEM_SELF) == "string" then patterns[#patterns + 1] = FormatToPattern(LOOT_ITEM_SELF) end
+        if type(LOOT_ITEM_PUSHED_SELF) == "string" then patterns[#patterns + 1] = FormatToPattern(LOOT_ITEM_PUSHED_SELF) end
+
+        for _, pat in ipairs(patterns) do
+            if pat then
+                local a, b = msg:match(pat)
+                -- MULTIPLE forms usually match (itemLink, count); single forms match (itemLink)
+                local itemLink = a
+                local count = b
+                if itemLink and itemLink:find("|Hitem:") then
+                    local n = tonumber(count)
+                    return itemLink, (n and n > 0) and n or 1
+                end
+            end
+        end
+
+        return nil, nil
+    end
+
+    local itemLink, quantity = ParseSelfLootMessage(message)
     if itemLink then
         local itemId = tonumber(itemLink:match("item:(%d+)"))
         local itemName = itemLink:match("%[(.-)%]")
-        local quantity = tonumber(message:match("|h|r%s*[xX](%d+)")) or 1
+        quantity = tonumber(quantity) or 1
 
         if itemId then
             -- Generic item looted (currently used for specific achievement triggers)

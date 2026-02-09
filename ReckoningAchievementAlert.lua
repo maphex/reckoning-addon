@@ -192,7 +192,7 @@ SlashCmdList["RECKTEST"] = function(msg)
     if lower == "fastafboiii" or lower == "9001" or trimmed == "9001" then
         if Data._achievements[FAST_AF_BOIII_ACHIEVEMENT_ID] then
             ReckoningAchievementAlert_Show(FAST_AF_BOIII_ACHIEVEMENT_ID)
-            print("Reckoning: Showing Fast AF BOIII achievement toast (preview). Run 2 minutes nonstop to earn it for real.")
+            print("Reckoning: Showing Fast AF BOIII achievement toast (preview). Run 5 minutes nonstop to earn it for real.")
         else
             print("Reckoning: Easter egg achievement not found.")
         end

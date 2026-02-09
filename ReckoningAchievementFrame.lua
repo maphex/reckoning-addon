@@ -506,6 +506,8 @@ function ReckoningAdmin_SelectSubTab(frame, subTab)
     if admin.LogScrollFrame then admin.LogScrollFrame:SetShown(subTab == "log") end
     if admin.LogHeader then admin.LogHeader:SetShown(subTab == "log") end
     if admin.LogFilterRow then admin.LogFilterRow:SetShown(subTab == "log") end
+    if admin.PointsScrollFrame then admin.PointsScrollFrame:SetShown(subTab == "points") end
+    if admin.PointsHeader then admin.PointsHeader:SetShown(subTab == "points") end
     if admin.LogEmptyState and subTab ~= "log" then admin.LogEmptyState:Hide() end
     if admin.ResolveButton then admin.ResolveButton:SetShown(subTab == "tickets") end
     if admin.EmptyState then admin.EmptyState:Hide() end
@@ -517,6 +519,10 @@ function ReckoningAdmin_SelectSubTab(frame, subTab)
         ReckoningAdminActions_Refresh(frame)
     elseif subTab == "log" then
         ReckoningAdminLog_Refresh(frame)
+    elseif subTab == "points" then
+        if ReckoningAdminPoints_Refresh then
+            ReckoningAdminPoints_Refresh(frame)
+        end
     end
 end
 
@@ -750,10 +756,139 @@ function ReckoningAdmin_EnsureUI(frame)
         logEmpty:SetText("No log entries.")
         logEmpty:Hide()
         admin.LogEmptyState = logEmpty
+
+        -----------------------------------------------------------------------
+        -- Points panel: roster-style net points + +/- adjustments
+        -----------------------------------------------------------------------
+
+        local pointsHeader = CreateFrame("Frame", nil, content)
+        pointsHeader:SetPoint("TOPLEFT", 8, -contentTop)
+        -- Tight width: keep this roster compact like the Guild tab roster
+        pointsHeader:SetWidth(520)
+        pointsHeader:SetHeight(24)
+        pointsHeader:Hide()
+        admin.PointsHeader = pointsHeader
+
+        local pointsHeaderBg = pointsHeader:CreateTexture(nil, "BACKGROUND")
+        pointsHeaderBg:SetAllPoints()
+        pointsHeaderBg:SetColorTexture(0, 0, 0, 0.5)
+
+        local function addPointsHeaderButton(text, x, width, column)
+            local btn = CreateFrame("Button", nil, pointsHeader)
+            btn:SetPoint("LEFT", x, 0)
+            btn:SetSize(width, 24)
+            local fs = btn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+            fs:SetPoint("LEFT", 4, 0)
+            fs:SetText(text)
+            fs:SetTextColor(1, 0.82, 0)
+            btn:SetScript("OnClick", function()
+                if PlaySound and SOUNDKIT then
+                    PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+                end
+                if ReckoningAdminPoints_SortBy then
+                    ReckoningAdminPoints_SortBy(frame, column)
+                end
+            end)
+            btn:SetScript("OnEnter", function() fs:SetTextColor(1, 1, 1) end)
+            btn:SetScript("OnLeave", function() fs:SetTextColor(1, 0.82, 0) end)
+            btn.text = fs
+            return btn
+        end
+
+        addPointsHeaderButton("Name", 6, 120, "name")
+        -- Removed Class column; tighten columns
+        addPointsHeaderButton("Ach", 132, 60, "achievementPoints")
+        addPointsHeaderButton("Adj", 198, 60, "adjustmentSum")
+        addPointsHeaderButton("Net", 264, 60, "netPoints")
+        local actionsLabel = pointsHeader:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        actionsLabel:SetPoint("LEFT", 330, 0)
+        actionsLabel:SetText("Actions")
+        actionsLabel:SetTextColor(1, 0.82, 0)
+
+        local syncBtn = CreateFrame("Button", nil, pointsHeader, "UIPanelButtonTemplate")
+        syncBtn:SetSize(64, 20)
+        syncBtn:SetPoint("RIGHT", -4, 0)
+        syncBtn:SetText("Sync")
+        syncBtn:SetScript("OnClick", function()
+            local pl = (Private or Reckoning.Private) and (Private or Reckoning.Private).PointsLedgerUtils
+            if pl and pl.RequestLedgerSnapshot then
+                pl:RequestLedgerSnapshot()
+            end
+        end)
+        pointsHeader.SyncButton = syncBtn
+
+        local histBtn = CreateFrame("Button", nil, pointsHeader, "UIPanelButtonTemplate")
+        histBtn:SetSize(64, 20)
+        histBtn:SetPoint("RIGHT", syncBtn, "LEFT", -6, 0)
+        histBtn:SetText("History")
+        histBtn:SetScript("OnClick", function()
+            if ReckoningAdminPoints_ShowHistory then
+                ReckoningAdminPoints_ShowHistory(nil)
+            end
+        end)
+        pointsHeader.HistoryButton = histBtn
+
+        local pointsScrollName = "ReckoningAchievementFrameAdminPointsScroll"
+        local pointsScroll = CreateFrame("ScrollFrame", pointsScrollName, content, "HybridScrollFrameTemplate")
+        pointsScroll:SetPoint("TOPLEFT", 8, -contentTop - 26)
+        pointsScroll:SetPoint("BOTTOMLEFT", 8, 10)
+        pointsScroll:SetWidth(520)
+        -- Ensure the HybridScrollFrame actually refreshes rows while scrolling.
+        pointsScroll.update = function()
+            if ReckoningAchievementFrame and ReckoningAdminPoints_Refresh then
+                ReckoningAdminPoints_Refresh(ReckoningAchievementFrame)
+            end
+        end
+        local pointsBar = CreateFrame("Slider", pointsScrollName .. "ScrollBar", pointsScroll, "HybridScrollBarTemplate")
+        pointsBar:SetPoint("TOPLEFT", pointsScroll, "TOPRIGHT", 1, -14)
+        pointsBar:SetPoint("BOTTOMLEFT", pointsScroll, "BOTTOMRIGHT", 1, 12)
+        pointsScroll.scrollBar = pointsBar
+        HybridScrollFrame_CreateButtons(pointsScroll, "ReckoningGuildRosterButtonTemplate", 0, 0, nil, nil, 0, -2)
+        admin.PointsScrollFrame = pointsScroll
+        pointsScroll:Hide()
+
+        -- Black background (50% alpha) for the whole points list area
+        local pointsScrollBg = pointsScroll:CreateTexture(nil, "BACKGROUND")
+        pointsScrollBg:SetAllPoints()
+        pointsScrollBg:SetColorTexture(0, 0, 0, 0.5)
+        pointsScroll.Bg = pointsScrollBg
+
+        for i, btn in ipairs(pointsScroll.buttons or {}) do
+            btn:SetHeight(22)
+            btn:RegisterForClicks("LeftButtonUp")
+            if not btn.PointsNameCol then
+                btn.PointsNameCol = btn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+                btn.PointsNameCol:SetPoint("LEFT", 6, 0)
+                btn.PointsAchCol = btn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+                btn.PointsAchCol:SetPoint("LEFT", 132, 0)
+                btn.PointsAdjCol = btn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+                btn.PointsAdjCol:SetPoint("LEFT", 198, 0)
+                btn.PointsNetCol = btn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+                btn.PointsNetCol:SetPoint("LEFT", 264, 0)
+
+                btn.bg = btn.bg or btn:CreateTexture(nil, "BACKGROUND")
+                btn.bg:SetAllPoints()
+                btn.bg:SetColorTexture(0, 0, 0, 0.15)
+
+                local minus = CreateFrame("Button", nil, btn, "UIPanelButtonTemplate")
+                minus:SetSize(22, 20)
+                -- Anchor left of the right edge a bit so it doesn't sit under the scrollbar edge.
+                minus:SetPoint("RIGHT", -10, 0)
+                minus:SetText("-")
+                btn.MinusButton = minus
+
+                local plus = CreateFrame("Button", nil, btn, "UIPanelButtonTemplate")
+                plus:SetSize(22, 20)
+                plus:SetPoint("RIGHT", minus, "LEFT", -4, 0)
+                plus:SetText("+")
+                btn.PlusButton = plus
+            end
+        end
     else
         admin.ScrollFrame = nil
         admin.ActionsScrollFrame = nil
         admin.LogScrollFrame = nil
+        admin.PointsScrollFrame = nil
     end
 
     resolve:SetScript("OnClick", function()
@@ -1259,6 +1394,318 @@ function ReckoningAdminLog_Refresh(frame)
             btn.LogAchievementCol:SetText(name)
             if index % 2 == 0 then btn.bg:Show() else btn.bg:Hide() end
             btn:SetHeight(buttonHeight)
+            btn:Show()
+        end
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Admin Tab: Points Ledger (manual +/- point adjustments)
+-------------------------------------------------------------------------------
+
+local ADMIN_POINTS_SORT_STATE = {
+    column = "netPoints",
+    ascending = false,
+}
+
+local ADMIN_POINTS_ROSTER_CACHE = {}
+
+local adminPointsAdjustDialog = nil
+local adminPointsHistoryDialog = nil
+
+local function Admin_IsAdmin()
+    local priv = Private or Reckoning.Private
+    local ts = priv and priv.TicketSyncUtils
+    return ts and ts.IsAdmin and ts:IsAdmin() == true
+end
+
+local function FormatSignedNumber(n)
+    n = tonumber(n) or 0
+    if n > 0 then
+        return "+" .. tostring(n)
+    end
+    return tostring(n)
+end
+
+local function EnsureAdminPointsAdjustDialog()
+    if adminPointsAdjustDialog then
+        return adminPointsAdjustDialog
+    end
+
+    local f = CreateFrame("Frame", "ReckoningAdminPointsAdjustDialog", UIParent, "BasicFrameTemplateWithInset")
+    f:SetSize(360, 180)
+    f:SetPoint("CENTER")
+    f:SetFrameStrata("DIALOG")
+    f:Hide()
+
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    f.title:SetPoint("TOPLEFT", 14, -10)
+    f.title:SetText("Adjust Achievement Points")
+
+    f.targetLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.targetLabel:SetPoint("TOPLEFT", 14, -40)
+    f.targetLabel:SetText("Target:")
+
+    f.targetValue = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.targetValue:SetPoint("LEFT", f.targetLabel, "RIGHT", 6, 0)
+    f.targetValue:SetText("?")
+
+    f.amountLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.amountLabel:SetPoint("TOPLEFT", 14, -65)
+    f.amountLabel:SetText("Amount:")
+
+    local amount = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+    amount:SetSize(80, 20)
+    amount:SetPoint("LEFT", f.amountLabel, "RIGHT", 6, 0)
+    amount:SetAutoFocus(false)
+    amount:SetNumeric(false)
+    amount:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    f.amountBox = amount
+
+    f.reasonLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    f.reasonLabel:SetPoint("TOPLEFT", 14, -95)
+    f.reasonLabel:SetText("Reason:")
+
+    local reason = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+    reason:SetSize(250, 20)
+    reason:SetPoint("LEFT", f.reasonLabel, "RIGHT", 6, 0)
+    reason:SetAutoFocus(false)
+    reason:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    f.reasonBox = reason
+
+    local submit = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    submit:SetSize(90, 22)
+    submit:SetPoint("BOTTOMRIGHT", -14, 12)
+    submit:SetText("Submit")
+    f.submitButton = submit
+
+    local cancel = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    cancel:SetSize(90, 22)
+    cancel:SetPoint("RIGHT", submit, "LEFT", -8, 0)
+    cancel:SetText("Cancel")
+    cancel:SetScript("OnClick", function()
+        f:Hide()
+    end)
+
+    submit:SetScript("OnClick", function()
+        local target = f._targetPlayer
+        local sign = tonumber(f._sign) or 1
+        local amt = tonumber((f.amountBox and f.amountBox.GetText and f.amountBox:GetText()) or "") or 0
+        amt = math.floor(math.abs(amt))
+        if amt <= 0 then
+            return
+        end
+        local delta = sign * amt
+        local why = (f.reasonBox and f.reasonBox.GetText and f.reasonBox:GetText()) or ""
+
+        local priv = Private or Reckoning.Private
+        local pl = priv and priv.PointsLedgerUtils
+        if pl and pl.CreateTransaction then
+            pl:CreateTransaction(target, delta, why)
+        end
+
+        f:Hide()
+        if ReckoningAdminPoints_Refresh and ReckoningAchievementFrame then
+            ReckoningAdminPoints_Refresh(ReckoningAchievementFrame)
+        end
+    end)
+
+    adminPointsAdjustDialog = f
+    return f
+end
+
+local function EnsureAdminPointsHistoryDialog()
+    if adminPointsHistoryDialog then
+        return adminPointsHistoryDialog
+    end
+
+    local f = CreateFrame("Frame", "ReckoningAdminPointsHistoryDialog", UIParent, "BasicFrameTemplateWithInset")
+    f:SetSize(520, 360)
+    f:SetPoint("CENTER")
+    f:SetFrameStrata("DIALOG")
+    f:Hide()
+
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    f.title:SetPoint("TOPLEFT", 14, -10)
+    f.title:SetText("Points Ledger History")
+
+    local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 14, -34)
+    scroll:SetPoint("BOTTOMRIGHT", -30, 14)
+
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetSize(1, 1)
+    scroll:SetScrollChild(content)
+
+    local text = content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    text:SetPoint("TOPLEFT", 0, 0)
+    text:SetJustifyH("LEFT")
+    text:SetJustifyV("TOP")
+    text:SetWidth(460)
+    text:SetText("")
+    content.text = text
+    f.scroll = scroll
+    f.content = content
+    f.text = text
+
+    adminPointsHistoryDialog = f
+    return f
+end
+
+function ReckoningAdminPoints_ShowHistory(targetPlayer)
+    if not Admin_IsAdmin() then return end
+    local dlg = EnsureAdminPointsHistoryDialog()
+
+    local priv = Private or Reckoning.Private
+    local pl = priv and priv.PointsLedgerUtils
+    local list = (pl and pl.GetLedgerHistory) and pl:GetLedgerHistory(targetPlayer) or {}
+
+    local header = targetPlayer and ("History: " .. tostring(targetPlayer)) or "History: All"
+    dlg.title:SetText(header)
+
+    local lines = {}
+    lines[#lines + 1] = "Date | Author | Delta | Target | Reason | TxId"
+    lines[#lines + 1] = "------------------------------------------------------------"
+    for _, tx in ipairs(list) do
+        local when = tx.issuedAt and date("%Y-%m-%d %H:%M", tx.issuedAt) or ""
+        local who = tostring(tx.issuedBy or "?")
+        local delta = FormatSignedNumber(tx.delta)
+        local tgt = tostring(tx.targetPlayer or "?")
+        local why = tostring(tx.reason or "")
+        local id = tostring(tx.id or "")
+        lines[#lines + 1] = string.format("%s | %s | %s | %s | %s | %s", when, who, delta, tgt, why, id)
+        if #lines >= 250 then
+            lines[#lines + 1] = "... (truncated)"
+            break
+        end
+    end
+
+    dlg.text:SetText(table.concat(lines, "\n"))
+    dlg:Show()
+end
+
+local function RefreshAdminPointsRosterCache()
+    local gs = Private.GuildSyncUtils
+    if not gs or not gs.GetAdminPointsRosterData then
+        ADMIN_POINTS_ROSTER_CACHE = {}
+        return
+    end
+    ADMIN_POINTS_ROSTER_CACHE = gs:GetAdminPointsRosterData(ADMIN_POINTS_SORT_STATE.column, ADMIN_POINTS_SORT_STATE.ascending)
+end
+
+function ReckoningAdminPoints_SortBy(frame, column)
+    if not frame or not frame.Admin then return end
+    local admin = frame.Admin
+
+    local state = ADMIN_POINTS_SORT_STATE
+    if state.column == column then
+        state.ascending = not state.ascending
+    else
+        state.column = column
+        -- Default direction: text asc, numeric desc.
+        if column == "name" then
+            state.ascending = true
+        else
+            state.ascending = false
+        end
+    end
+
+    if admin.PointsScrollFrame and HybridScrollFrame_SetOffset then
+        HybridScrollFrame_SetOffset(admin.PointsScrollFrame, 0)
+    end
+    ReckoningAdminPoints_Refresh(frame)
+end
+
+function ReckoningAdminPoints_Refresh(frame)
+    if not frame or not frame.Admin then return end
+    local admin = frame.Admin
+
+    local isAdmin = Admin_IsAdmin()
+    if admin.Info then
+        admin.Info:SetShown(not isAdmin)
+    end
+    if not isAdmin then
+        if admin.PointsHeader then admin.PointsHeader:Hide() end
+        if admin.PointsScrollFrame then admin.PointsScrollFrame:Hide() end
+        return
+    end
+
+    -- Ask for a snapshot when opening/refreshing so offline/multi-PC clients converge.
+    -- Avoid doing this on every scroll update.
+    local now = time()
+    if (now - (tonumber(admin._pointsLastSnapshotAt) or 0)) >= 30 then
+        admin._pointsLastSnapshotAt = now
+        local priv = Private or Reckoning.Private
+        local pl = priv and priv.PointsLedgerUtils
+        if pl and pl.RequestLedgerSnapshot then
+            pl:RequestLedgerSnapshot()
+        end
+    end
+
+    if not admin.PointsScrollFrame or not admin.PointsScrollFrame.buttons then
+        return
+    end
+
+    RefreshAdminPointsRosterCache()
+
+    local scroll = admin.PointsScrollFrame
+    local offset = HybridScrollFrame_GetOffset(scroll)
+    local buttons = scroll.buttons
+    local rowHeight = 22
+    local totalHeight = #ADMIN_POINTS_ROSTER_CACHE * (rowHeight + 2)
+    HybridScrollFrame_Update(scroll, totalHeight, scroll:GetHeight())
+
+    for i = 1, #buttons do
+        local index = offset + i
+        local btn = buttons[i]
+        local entry = ADMIN_POINTS_ROSTER_CACHE[index]
+        if not entry then
+            btn:Hide()
+        else
+            local name = entry.name or "?"
+            local ach = tonumber(entry.achievementPoints) or 0
+            local adj = tonumber(entry.adjustmentSum) or 0
+            local net = tonumber(entry.netPoints) or (ach + adj)
+
+            btn.PointsNameCol:SetText(name)
+            btn.PointsAchCol:SetText(tostring(ach))
+            btn.PointsAdjCol:SetText(FormatSignedNumber(adj))
+            btn.PointsNetCol:SetText(tostring(net))
+
+            -- Alternating background
+            if index % 2 == 0 then btn.bg:Show() else btn.bg:Hide() end
+
+            -- Keep +/- above row background/layers
+            local baseLevel = btn:GetFrameLevel()
+            if btn.PlusButton then btn.PlusButton:SetFrameLevel(baseLevel + 10) end
+            if btn.MinusButton then btn.MinusButton:SetFrameLevel(baseLevel + 10) end
+
+            btn.PlusButton:SetScript("OnClick", function()
+                local dlg = EnsureAdminPointsAdjustDialog()
+                dlg._targetPlayer = name
+                dlg._sign = 1
+                dlg.targetValue:SetText(name)
+                dlg.amountBox:SetText("")
+                dlg.reasonBox:SetText("")
+                dlg:Show()
+                dlg.amountBox:SetFocus()
+            end)
+            btn.MinusButton:SetScript("OnClick", function()
+                local dlg = EnsureAdminPointsAdjustDialog()
+                dlg._targetPlayer = name
+                dlg._sign = -1
+                dlg.targetValue:SetText(name)
+                dlg.amountBox:SetText("")
+                dlg.reasonBox:SetText("")
+                dlg:Show()
+                dlg.amountBox:SetFocus()
+            end)
+
+            btn:SetScript("OnClick", function()
+                ReckoningAdminPoints_ShowHistory(name)
+            end)
+
+            btn:SetHeight(rowHeight)
             btn:Show()
         end
     end

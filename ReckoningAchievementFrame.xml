@@ -1857,6 +1857,20 @@
                                             </OnClick>
                                         </Scripts>
                                     </Button>
+                                    <Button name="$parentPointsButton" parentKey="PointsButton" inherits="ReckoningAchievementCategoryButtonTemplate">
+                                        <Anchors>
+                                            <Anchor point="TOPLEFT" relativeTo="$parentLogButton" relativePoint="BOTTOMLEFT" x="0" y="-2"/>
+                                        </Anchors>
+                                        <Scripts>
+                                            <OnLoad>
+                                                self.label:SetText("Points")
+                                            </OnLoad>
+                                            <OnClick>
+                                                ReckoningAdmin_SelectSubTab(self:GetParent():GetParent():GetParent():GetParent(), "points")
+                                                PlaySound(SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or "igMainMenuOptionCheckBoxOn")
+                                            </OnClick>
+                                        </Scripts>
+                                    </Button>
                                 </Frames>
                             </Frame>
                         </Frames>
