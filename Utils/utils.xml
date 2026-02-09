@@ -25,4 +25,5 @@
     <script file="GuildSyncUtils.lua" />
     <script file="TicketSyncUtils.lua" />
     <script file="CorrectionSyncUtils.lua" />
+    <script file="PointsLedgerUtils.lua" />
 </Ui>

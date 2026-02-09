@@ -125,8 +125,22 @@ local function HandleGuildMembershipChanged()
         end
     end
 
+    if guildActuallyChanged then
+        local pl = Private.PointsLedgerUtils
+        if pl and pl.WipeAllTransactions then
+            pl:WipeAllTransactions()
+        end
+    end
+
     if currentKey ~= nil then
         addon.Database.achievementGuildKey = currentKey
+    end
+
+    if currentKey ~= nil then
+        local pl = Private.PointsLedgerUtils
+        if pl and pl.OnPlayerLogin then
+            pl:OnPlayerLogin()
+        end
     end
 end
 
@@ -143,6 +157,9 @@ function addon:OnInitialize(...)
     end
     if Private.CorrectionSyncUtils and Private.CorrectionSyncUtils.Init then
         Private.CorrectionSyncUtils:Init()
+    end
+    if Private.PointsLedgerUtils and Private.PointsLedgerUtils.Init then
+        Private.PointsLedgerUtils:Init()
     end
     if Private.MinimapButton and Private.MinimapButton.Init then
         Private.MinimapButton:Init()
