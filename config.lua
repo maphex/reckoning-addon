@@ -1366,7 +1366,7 @@ local ACHIEVEMENTS = {
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "QUEST_COMPLETED",
-			conditions = { zone = "Hellfire Peninsula" }
+			conditions = { location = "Hellfire Peninsula" }
 		},
 		progress = { type = "count", required = 84 }
 	},
@@ -3298,7 +3298,7 @@ local ACHIEVEMENTS = {
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "PVP_OBJECTIVE_CAPTURED",
-			conditions = { zone = "Hellfire Peninsula" }
+			conditions = { location = "Hellfire Peninsula" }
 		},
 		progress = { type = "criteria", required = 3 }
 	},
