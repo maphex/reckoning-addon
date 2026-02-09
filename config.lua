@@ -3517,8 +3517,8 @@ local ACHIEVEMENTS = {
 		startWeek = 8,
 		endWeek = 9,
 		trigger = {
-			event = "PVP_OBJECTIVE_CAPTURED",
-			conditions = { zone = "Nagrand", objectiveType = "halaa" }
+			event = "PVP_OBJECTIVE_HELD",
+			conditions = { location = "Nagrand", objectiveName = "Halaa", duration = function(d) return d and d >= 1800 end }
 		}
 	},
 	{
