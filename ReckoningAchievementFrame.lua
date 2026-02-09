@@ -411,19 +411,30 @@ end
 function Data:GetRecentCompletedAchievements(maxCount)
     maxCount = maxCount or 4
     local completed = {}
+    local priv = Reckoning and Reckoning.Private
+    local addon = priv and priv.Addon
+    local db = addon and addon.Database
+    local completedData = db and db.completed
     for _, achievement in pairs(self._achievements) do
         if IsAchievementAvailable(achievement) and achievement.completed then
-            completed[#completed + 1] = achievement
+            local completedAt = 0
+            if completedData and achievement.id and completedData[achievement.id] then
+                completedAt = completedData[achievement.id].completedAt or 0
+            end
+            completed[#completed + 1] = { achievement = achievement, completedAt = completedAt }
         end
     end
-    -- Sort by most recently completed (we don't have timestamps, so by ID descending for now)
+    -- Sort by most recently completed (use timestamp; fall back to ID)
     table.sort(completed, function(a, b)
-        return (a.id or 0) > (b.id or 0)
+        if (a.completedAt or 0) == (b.completedAt or 0) then
+            return (a.achievement.id or 0) > (b.achievement.id or 0)
+        end
+        return (a.completedAt or 0) > (b.completedAt or 0)
     end)
     -- Return only the first maxCount
     local result = {}
     for i = 1, math.min(maxCount, #completed) do
-        result[i] = completed[i]
+        result[i] = completed[i].achievement
     end
     return result
 end
@@ -4023,3 +4034,4 @@ SLASH_RECKONINGACHIEVEMENTS2 = "/reckach"
 SlashCmdList["RECKONINGACHIEVEMENTS"] = function(msg)
     ReckoningAchievementFrame_Toggle()
 end
+
