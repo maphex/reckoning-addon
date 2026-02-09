@@ -2302,7 +2302,7 @@ local ACHIEVEMENTS = {
 	{
 		id = 4013,
 		name = "In the Bag",
-		description = "Craft 120 Netherweave or Heavy Netherweave Bags",
+		description = "Craft 120 Netherweave, Heavy Netherweave, or Imbued Netherweave Bags",
 		points = 30,
 		category = 4,
 		subCategory = 40,
@@ -2312,7 +2312,7 @@ local ACHIEVEMENTS = {
 			event = "ITEM_CRAFTED",
 			conditions = {
 				profession = Enums.Profession.Tailoring,
-				itemName = { "Netherweave Bag", "Heavy Netherweave Bag" }
+				itemName = { "Netherweave Bag", "Heavy Netherweave Bag", "Imbued Netherweave Bag" }
 			}
 		},
 		progress = { type = "count", required = 120 }
