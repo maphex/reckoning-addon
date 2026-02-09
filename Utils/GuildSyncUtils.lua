@@ -2632,6 +2632,68 @@ function guildSync:GetRosterData(sortColumn, ascending)
     return roster
 end
 
+---Get sorted roster data for Admin -> Points tab (includes manual point adjustments)
+---@param sortColumn? string "name", "class", "lastSeen", "achievementPoints", "adjustmentSum", "netPoints"
+---@param ascending? boolean
+---@return table[]
+function guildSync:GetAdminPointsRosterData(sortColumn, ascending)
+    sortColumn = sortColumn or "netPoints"
+    if ascending == nil then ascending = false end
+
+    local onlineMembers = self:GetOnlineMembers()
+    local pl = Private.PointsLedgerUtils
+
+    local roster = {}
+    for name, member in pairs(self.memberData) do
+        local short = member.name or name
+        local achievementPoints = member.totalPoints or 0
+        local adjustmentSum = (pl and pl.SumAdjustmentsForPlayer) and pl:SumAdjustmentsForPlayer(short) or 0
+        local netPoints = achievementPoints + adjustmentSum
+
+        roster[#roster + 1] = {
+            name = short,
+            class = member.class,
+            version = member.version,
+            lastSeen = member.lastSeen,
+            isOnline = onlineMembers[short] or false,
+            achievementPoints = achievementPoints,
+            adjustmentSum = adjustmentSum,
+            netPoints = netPoints,
+        }
+    end
+
+    table.sort(roster, function(a, b)
+        local aVal, bVal
+        if sortColumn == "name" then
+            aVal, bVal = (a.name or ""):lower(), (b.name or ""):lower()
+        elseif sortColumn == "class" then
+            aVal, bVal = (a.class or ""):lower(), (b.class or ""):lower()
+        elseif sortColumn == "lastSeen" then
+            local now = time()
+            aVal = a.isOnline and now or (a.lastSeen or 0)
+            bVal = b.isOnline and now or (b.lastSeen or 0)
+        elseif sortColumn == "achievementPoints" then
+            aVal, bVal = a.achievementPoints or 0, b.achievementPoints or 0
+        elseif sortColumn == "adjustmentSum" then
+            aVal, bVal = a.adjustmentSum or 0, b.adjustmentSum or 0
+        elseif sortColumn == "netPoints" then
+            aVal, bVal = a.netPoints or 0, b.netPoints or 0
+        else
+            aVal, bVal = (a.name or ""):lower(), (b.name or ""):lower()
+        end
+
+        if aVal == bVal then
+            return (a.name or ""):lower() < (b.name or ""):lower()
+        end
+        if ascending then
+            return aVal < bVal
+        end
+        return aVal > bVal
+    end)
+
+    return roster
+end
+
 ---Get member count statistics
 ---@return number total, number withAddon, number online
 function guildSync:GetMemberStats()
