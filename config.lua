@@ -3130,7 +3130,7 @@ local ACHIEVEMENTS = {
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "PVP_KILLING_BLOW",
-			conditions = {}
+			conditions = { battleground = function(bg) return bg ~= nil end }
 		},
 		progress = { type = "count", required = 20, reset = "match" },
 		failCondition = {

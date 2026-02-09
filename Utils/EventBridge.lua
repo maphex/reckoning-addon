@@ -851,6 +851,7 @@ function eventBridge:HandleCombatLog(...)
                 victimLevel = Private.UnitCache:GetLevelByGUID(destGUID),
                 zone = GetZoneText() or "Unknown",
                 targetType = targetType,
+                battleground = self.pvpState.inBattleground and self.pvpState.bgName or nil,
             })
         -- Creature kills: track party/raid kills
         elseif destType == "Creature" and self:IsPartyOrRaidMemberGUID(sourceGUID) then
