@@ -1,0 +1,6 @@
+<Bindings>
+    <!-- Default=Y, but user can change in Key Bindings -->
+    <Binding name="TOGGLEACHIEVEMENT" header="RECKONING" category="Reckoning Achievements" default="Y">
+        Reckoning_ToggleAchievementsBinding()
+    </Binding>
+</Bindings>

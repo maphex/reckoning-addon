@@ -4205,7 +4205,7 @@ local ACHIEVEMENTS = {
 	{
 		id = 9001,
 		name = "Fast AF BOIII",
-		description = "Run for 2 minutes nonstop",
+		description = "Run for 5 minutes nonstop",
 		points = 0,
 		category = 5,
 		subCategory = 50,
@@ -4214,7 +4214,7 @@ local ACHIEVEMENTS = {
 		startWeek = 1,
 		progress = { type = "count", required = 1 },
 		trigger = {
-			event = "RUNNING_2_MINUTES"
+			event = "RUNNING_5_MINUTES"
 		}
 	},
 

@@ -404,15 +404,17 @@ function engine:OnDistributedRecoveryResponse(data, sender)
     end
 
     if addon and addon.Print then
-        if completionCount > 0 then
-            addon:Print("|cff00ff00[Crash Recovery] Restored " .. completionCount .. " completed achievements from " .. tostring(sender or "?") .. "!|r")
-        end
-        if progressCount > 0 then
-            addon:Print("|cffFFD700[Crash Recovery] Restored progress for " .. progressCount .. " achievements from " .. tostring(sender or "?") .. "!|r")
-        end
+        local msg = "|cff00ff00[Guild Sync] Synced "
+            .. tostring(completionCount) .. " completions and "
+            .. tostring(progressCount) .. " in-progress entries"
+            .. " from guild cache (" .. tostring(sender or "?") .. ").|r"
+        addon:Print(msg)
     end
 
     self:SyncUIFromLoadedData()
+    if ReckoningAchievementFrame_Refresh then
+        ReckoningAchievementFrame_Refresh()
+    end
     self:SaveProgress(true)
     self.lastSavedAt = tonumber(addon.Database.lastSaved) or remoteTs
 end

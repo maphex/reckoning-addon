@@ -36,6 +36,8 @@ local defaultDatabase = {
         ticketsSavedAt = 0,       -- Last ticket cache save time
         achievementCorrections = {}, -- CorrectionId -> AchievementCorrection (officer invalidate/revalidate)
         achievementCorrectionsSavedAt = 0,
+        pointsLedger = {},        -- TxId -> PointsLedgerTransaction (manual point adjustments)
+        pointsLedgerSavedAt = 0,
         savedAt = 0,              -- Last cache save time
     },
 }
