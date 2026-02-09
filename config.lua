@@ -3056,7 +3056,7 @@ local ACHIEVEMENTS = {
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "PVP_KILL",
-			conditions = { isKillingBlow = true }
+			conditions = { isKillingBlow = true, battleground = function(bg) return bg ~= nil end }
 		},
 		progress = { type = "count", required = 10, reset = "match" }
 	},
@@ -3071,7 +3071,7 @@ local ACHIEVEMENTS = {
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "PVP_KILL",
-			conditions = {}
+			conditions = { battleground = function(bg) return bg ~= nil end }
 		},
 		progress = { type = "count", required = 40, reset = "match" }
 	},
@@ -3086,7 +3086,7 @@ local ACHIEVEMENTS = {
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "PVP_KILL",
-			conditions = {}
+			conditions = { battleground = function(bg) return bg ~= nil end }
 		},
 		progress = { type = "count", required = 100, reset = "match" }
 	},

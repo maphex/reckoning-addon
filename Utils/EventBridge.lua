@@ -902,6 +902,7 @@ function eventBridge:HandleCombatLog(...)
                 zone = GetZoneText() or "Unknown",
                 isKillingBlow = isKillingBlow,
                 totalKills = self.pvpState.kills,
+                battleground = self.pvpState.bgName,
             })
         end
     end
@@ -1768,6 +1769,7 @@ function eventBridge:HandleHonorGain(message)
         honorGained = honorAmount,
         inBattleground = self.pvpState.inBattleground or false,
         inArena = self.pvpState.inArena or false,
+        battleground = self.pvpState.inBattleground and self.pvpState.bgName or nil,
     })
 end
 
