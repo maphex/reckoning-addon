@@ -27,6 +27,7 @@ local Enums = Private.Enums
 ---| "ITEM_DISENCHANTED"
 ---| "FISH_CAUGHT"
 ---| "QUEST_COMPLETED"
+---| "BOOK_READ"
 ---| "REPUTATION_GAINED"
 ---| "RING_ENCHANTED"
 ---| "BADGE_EARNED"
@@ -265,6 +266,8 @@ function eventBridge:Init()
     self:RegisterWowEvent("CHAT_MSG_COMBAT_HONOR_GAIN")
     self:RegisterWowEvent("CHAT_MSG_LOOT")
     self:RegisterWowEvent("QUEST_TURNED_IN")
+    self:RegisterWowEvent("ITEM_TEXT_BEGIN")
+    self:RegisterWowEvent("ITEM_TEXT_READY")
     self:RegisterWowEvent("UPDATE_FACTION")
     self:RegisterWowEvent("PLAYER_EQUIPMENT_CHANGED")
     self:RegisterWowEvent("UNIT_SPELLCAST_SUCCEEDED")
@@ -437,6 +440,8 @@ function eventBridge:OnWowEvent(event, ...)
         self:HandleMoneyChanged()
     elseif event == "QUEST_TURNED_IN" then
         self:HandleQuestTurnedIn(...)
+    elseif event == "ITEM_TEXT_BEGIN" or event == "ITEM_TEXT_READY" then
+        self:HandleItemText()
     elseif event == "PLAYER_EQUIPMENT_CHANGED" then
         self:HandleEquipmentChanged(...)
     elseif event == "UNIT_THREAT_LIST_UPDATE" then
@@ -1056,6 +1061,32 @@ function eventBridge:HandleQuestTurnedIn(questId, xpReward, moneyReward)
         isDaily = isDaily,
         xpGained = xpReward or 0,
         goldGained = moneyReward and math.floor(moneyReward / 10000) or 0,  -- Convert copper to gold
+    })
+end
+
+function eventBridge:HandleItemText()
+    local instanceName, instanceType = GetInstanceInfo()
+    if instanceType ~= "raid" or instanceName ~= "Karazhan" then
+        return
+    end
+
+    local title = nil
+    if ItemTextGetItem then
+        title = ItemTextGetItem()
+    end
+    if not title or title == "" then
+        if ItemTextFrameTitleText and ItemTextFrameTitleText.GetText then
+            title = ItemTextFrameTitleText:GetText()
+        end
+    end
+    if not title or title == "" then
+        return
+    end
+
+    self:Fire("BOOK_READ", {
+        bookTitle = title,
+        instance = instanceName,
+        zone = GetZoneText() or "Unknown",
     })
 end
 

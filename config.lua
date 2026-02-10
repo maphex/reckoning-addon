@@ -3705,7 +3705,7 @@ local ACHIEVEMENTS = {
 			conditions = { bossName = "Moroes", duration = function(d) return d <= 80 end }
 		}
 	},
-	-- TODO: Not currently tracking looting of books.
+	-- Tracks readable books via item text while in Karazhan.
 	{
 		id = 2007,
 		name = "Books of Power",
@@ -3717,10 +3717,10 @@ local ACHIEVEMENTS = {
 		cadence = Enums.Cadence.AllTime,
 		startWeek = 2,
 		trigger = {
-			event = "QUEST_COMPLETED",
-			conditions = {}
+			event = "BOOK_READ",
+			conditions = { instance = "Karazhan" }
 		},
-		progress = { type = "criteria", required = 12 }
+		progress = { type = "criteria", required = 12, criteriaKey = "bookTitle" }
 	},
 	{
 		id = 2008,
