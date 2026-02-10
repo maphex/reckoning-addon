@@ -405,22 +405,39 @@ end
 ---Week 0 = pre-launch (before TBC_ANNIVERSARY_EPOCH). IsAchievementAvailable treats week 0 as unavailable.
 ---@return number weekNumber
 function databaseUtils:GetCurrentWeek()
-    -- Calculate weeks since TBC Anniversary launch (February 3, 2026)
-    -- Week 1 starts on launch day
-    local TBC_ANNIVERSARY_EPOCH = 1770076800 -- Unix timestamp for Feb 3, 2026 00:00:00 UTC
+    -- Weekly reset is Tuesday at 7:00 AM server time (PST/PDT).
+    -- Week 1 starts at the first reset time on launch day (Feb 3, 2026).
     local WEEK_SECONDS = 604800 -- 7 days in seconds
+    local RESET_WDAY = 3 -- Tuesday (Sunday = 1)
+    local RESET_HOUR = 7
+    local RESET_MIN = 0
 
     local now = time()
-    local secondsSinceLaunch = now - TBC_ANNIVERSARY_EPOCH
+    local nowDate = date("*t", now)
 
-    -- Before launch: return 0 so week gating can treat all time-limited achievements as unavailable
-    if secondsSinceLaunch < 0 then
+    local daysSinceReset = (nowDate.wday - RESET_WDAY) % 7
+    if daysSinceReset == 0 then
+        if (nowDate.hour < RESET_HOUR) or (nowDate.hour == RESET_HOUR and nowDate.min < RESET_MIN) then
+            daysSinceReset = 7
+        end
+    end
+
+    local lastReset = time({
+        year = nowDate.year,
+        month = nowDate.month,
+        day = nowDate.day - daysSinceReset,
+        hour = RESET_HOUR,
+        min = RESET_MIN,
+        sec = 0,
+        isdst = nowDate.isdst,
+    })
+
+    local launchReset = time({ year = 2026, month = 2, day = 3, hour = RESET_HOUR, min = RESET_MIN, sec = 0 })
+    if lastReset < launchReset then
         return 0
     end
 
-    -- Week 1 is the first week (0-6 days after launch = week 1)
-    local weekNumber = math.floor(secondsSinceLaunch / WEEK_SECONDS) + 1
-
+    local weekNumber = math.floor((lastReset - launchReset) / WEEK_SECONDS) + 1
     return weekNumber
 end
 
