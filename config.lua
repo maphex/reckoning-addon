@@ -1513,32 +1513,34 @@ local ACHIEVEMENTS = {
 			conditions = { profession = Enums.Profession.Riding, newLevel = 300 }
 		}
 	},
-	{
-		id = 5026,
-		name = "Greedy",
-		description = "Win a Greed roll on a superior or better item above Level 60",
-		points = 5,
-		category = 5,
-		icon = 133786,
-		cadence = Enums.Cadence.AllTime,
-		trigger = {
-			event = "LOOT_ROLL_WON",
-			conditions = { rollType = "greed" }
-		}
-	},
-	{
-		id = 5027,
-		name = "Needy",
-		description = "Win a Need roll on a Superior or better item by rolling 100",
-		points = 5,
-		category = 5,
-		icon = 133785,
-		cadence = Enums.Cadence.AllTime,
-		trigger = {
-			event = "LOOT_ROLL_WON",
-			conditions = { rollType = "need", rollValue = 100 }
-		}
-	},
+	-- TODO: fix
+	-- {
+	-- 	id = 5026,
+	-- 	name = "Greedy",
+	-- 	description = "Win a Greed roll on a superior or better item above Level 60",
+	-- 	points = 5,
+	-- 	category = 5,
+	-- 	icon = 133786,
+	-- 	cadence = Enums.Cadence.AllTime,
+	-- 	trigger = {
+	-- 		event = "LOOT_ROLL_WON",
+	-- 		conditions = { rollType = "greed" }
+	-- 	}
+	-- },
+	-- TODO: fix
+	-- {
+	-- 	id = 5027,
+	-- 	name = "Needy",
+	-- 	description = "Win a Need roll on a Superior or better item by rolling 100",
+	-- 	points = 5,
+	-- 	category = 5,
+	-- 	icon = 133785,
+	-- 	cadence = Enums.Cadence.AllTime,
+	-- 	trigger = {
+	-- 		event = "LOOT_ROLL_WON",
+	-- 		conditions = { rollType = "need", rollValue = 100 }
+	-- 	}
+	-- },
 	{
 		id = 5028,
 		name = "Epics Jimmy Epics!",
