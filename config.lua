@@ -2224,21 +2224,21 @@ local ACHIEVEMENTS = {
 		progress = { type = "count", required = 700 }
 	},
 	-- TODO: This is not currently trackable.
-	{
-		id = 4008,
-		name = "The Collector of Glow",
-		description = "Apply 50 Weapon Enchants to Different Items above Level 60",
-		points = 25,
-		category = 4,
-		subCategory = 40,
-		icon = 132881,
-		cadence = Enums.Cadence.AllTime,
-		trigger = {
-			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Enchanting }
-		},
-		progress = { type = "count", required = 50 }
-	},
+	-- {
+	-- 	id = 4008,
+	-- 	name = "The Collector of Glow",
+	-- 	description = "Apply 50 Weapon Enchants to Different Items above Level 60",
+	-- 	points = 25,
+	-- 	category = 4,
+	-- 	subCategory = 40,
+	-- 	icon = 132881,
+	-- 	cadence = Enums.Cadence.AllTime,
+	-- 	trigger = {
+	-- 		event = "ITEM_CRAFTED",
+	-- 		conditions = { profession = Enums.Profession.Enchanting }
+	-- 	},
+	-- 	progress = { type = "count", required = 50 }
+	-- },
 	{
 		id = 4009,
 		name = "Shard Whisperer",
@@ -2498,21 +2498,21 @@ local ACHIEVEMENTS = {
 		}
 	},
 	-- TODO: This is not currently tracking item level.
-	{
-		id = 4022,
-		name = "Forge of Reckoning",
-		description = "Craft 150 weapons or armor pieces total above level 60",
-		points = 30,
-		category = 4,
-		subCategory = 40,
-		icon = 132736,
-		cadence = Enums.Cadence.AllTime,
-		trigger = {
-			event = "ITEM_CRAFTED",
-			conditions = { profession = Enums.Profession.Blacksmithing }
-		},
-		progress = { type = "count", required = 150 }
-	},
+	-- {
+	-- 	id = 4022,
+	-- 	name = "Forge of Reckoning",
+	-- 	description = "Craft 150 weapons or armor pieces total above level 60",
+	-- 	points = 30,
+	-- 	category = 4,
+	-- 	subCategory = 40,
+	-- 	icon = 132736,
+	-- 	cadence = Enums.Cadence.AllTime,
+	-- 	trigger = {
+	-- 		event = "ITEM_CRAFTED",
+	-- 		conditions = { profession = Enums.Profession.Blacksmithing }
+	-- 	},
+	-- 	progress = { type = "count", required = 150 }
+	-- },
 	{
 		id = 4023,
 		name = "Herbal Hero",
@@ -2619,21 +2619,21 @@ local ACHIEVEMENTS = {
 		progress = { type = "count", required = 1000 }
 	},
 	-- TODO: Filter to only count non-fish items.
-	{
-		id = 4030,
-		name = "Catching Strays",
-		description = "Fish up 1000 Items",
-		points = 10,
-		category = 4,
-		subCategory = 41,
-		icon = 132931,
-		cadence = Enums.Cadence.AllTime,
-		trigger = {
-			event = "FISH_CAUGHT",
-			conditions = {}
-		},
-		progress = { type = "count", required = 1000 }
-	},
+	-- {
+	-- 	id = 4030,
+	-- 	name = "Catching Strays",
+	-- 	description = "Fish up 1000 Items",
+	-- 	points = 10,
+	-- 	category = 4,
+	-- 	subCategory = 41,
+	-- 	icon = 132931,
+	-- 	cadence = Enums.Cadence.AllTime,
+	-- 	trigger = {
+	-- 		event = "FISH_CAUGHT",
+	-- 		conditions = {}
+	-- 	},
+	-- 	progress = { type = "count", required = 1000 }
+	-- },
 	{
 		id = 4031,
 		name = "Master Fisherman",
@@ -3638,22 +3638,22 @@ local ACHIEVEMENTS = {
 			conditions = { bossName = "Chess Event", duration = function(d) return d <= 120 end }
 		}
 	},
-	{
-		id = 2003,
-		name = "True Love Denied",
-		description = "Defeat Julianne & Romulo without any uninterrupted cast of Eternal Affection",
-		points = 15,
-		category = 2,
-		subCategory = 20,
-		icon = 135767,
-		cadence = Enums.Cadence.AllTime,
-		-- TODO: Implement fail tracking for uninterrupted Eternal Affection casts.
-		-- Requires combat log parsing to track spell interrupts.
-		trigger = {
-			event = "DUNGEON_BOSS_KILLED",
-			conditions = { bossName = "Julianne" }
-		}
-	},
+	-- {
+	-- 	id = 2003,
+	-- 	name = "True Love Denied",
+	-- 	description = "Defeat Julianne & Romulo without any uninterrupted cast of Eternal Affection",
+	-- 	points = 15,
+	-- 	category = 2,
+	-- 	subCategory = 20,
+	-- 	icon = 135767,
+	-- 	cadence = Enums.Cadence.AllTime,
+	-- 	-- TODO: Implement fail tracking for uninterrupted Eternal Affection casts.
+	-- 	-- Requires combat log parsing to track spell interrupts.
+	-- 	trigger = {
+	-- 		event = "DUNGEON_BOSS_KILLED",
+	-- 		conditions = { bossName = "Julianne" }
+	-- 	}
+	-- },
 	{
 		id = 2004,
 		name = "A Night at the Opera",
@@ -3706,22 +3706,22 @@ local ACHIEVEMENTS = {
 		}
 	},
 	-- TODO: Not currently tracking looting of books.
-	{
-		id = 2007,
-		name = "Books of Power",
-		description = "Interact with all 12 readable books scattered throughout Karazhan",
-		points = 15,
-		category = 2,
-		subCategory = 20,
-		icon = 133733,
-		cadence = Enums.Cadence.AllTime,
-		startWeek = 2,
-		trigger = {
-			event = "QUEST_COMPLETED",
-			conditions = {}
-		},
-		progress = { type = "criteria", required = 12 }
-	},
+	-- {
+	-- 	id = 2007,
+	-- 	name = "Books of Power",
+	-- 	description = "Interact with all 12 readable books scattered throughout Karazhan",
+	-- 	points = 15,
+	-- 	category = 2,
+	-- 	subCategory = 20,
+	-- 	icon = 133733,
+	-- 	cadence = Enums.Cadence.AllTime,
+	-- 	startWeek = 2,
+	-- 	trigger = {
+	-- 		event = "QUEST_COMPLETED",
+	-- 		conditions = {}
+	-- 	},
+	-- 	progress = { type = "criteria", required = 12 }
+	-- },
 	{
 		id = 2008,
 		name = "Just Dance",
@@ -3740,43 +3740,43 @@ local ACHIEVEMENTS = {
 			}
 		}
 	},
-	{
-		id = 2009,
-		name = "Runaway Little Girl",
-		description = "Defeat Big Bad Wolf without anyone getting hit as Little Red Riding Hood",
-		points = 15,
-		category = 2,
-		subCategory = 20,
-		icon = 132224,
-		cadence = Enums.Cadence.AllTime,
-		startWeek = 2,
-		-- TODO: Implement fail tracking for damage taken while polymorphed as Little Red Riding Hood.
-		-- Requires combat log parsing to track damage events on players with specific debuff.
-		trigger = {
-			event = "DUNGEON_BOSS_KILLED",
-			conditions = { bossName = "The Big Bad Wolf" }
-		}
-	},
-	{
-		id = 2010,
-		name = "Barnes and Noble",
-		description = "Have all raid members /cheer at Barnes in the Opera Event",
-		points = 10,
-		category = 2,
-		subCategory = 20,
-		icon = 136144,
-		cadence = Enums.Cadence.AllTime,
-		startWeek = 2,
-		-- TODO: Currently only tracks when YOU cheer at Barnes. To fully implement,
-		-- need to track all raid members cheering (may require guild communication/tracking).
-		trigger = {
-			event = "EMOTE_SENT",
-			conditions = {
-				emoteType = "cheer",
-				targetName = "Barnes"
-			}
-		}
-	},
+	-- {
+	-- 	id = 2009,
+	-- 	name = "Runaway Little Girl",
+	-- 	description = "Defeat Big Bad Wolf without anyone getting hit as Little Red Riding Hood",
+	-- 	points = 15,
+	-- 	category = 2,
+	-- 	subCategory = 20,
+	-- 	icon = 132224,
+	-- 	cadence = Enums.Cadence.AllTime,
+	-- 	startWeek = 2,
+	-- 	-- TODO: Implement fail tracking for damage taken while polymorphed as Little Red Riding Hood.
+	-- 	-- Requires combat log parsing to track damage events on players with specific debuff.
+	-- 	trigger = {
+	-- 		event = "DUNGEON_BOSS_KILLED",
+	-- 		conditions = { bossName = "The Big Bad Wolf" }
+	-- 	}
+	-- },
+	-- {
+	-- 	id = 2010,
+	-- 	name = "Barnes and Noble",
+	-- 	description = "Have all raid members /cheer at Barnes in the Opera Event",
+	-- 	points = 10,
+	-- 	category = 2,
+	-- 	subCategory = 20,
+	-- 	icon = 136144,
+	-- 	cadence = Enums.Cadence.AllTime,
+	-- 	startWeek = 2,
+	-- 	-- TODO: Currently only tracks when YOU cheer at Barnes. To fully implement,
+	-- 	-- need to track all raid members cheering (may require guild communication/tracking).
+	-- 	trigger = {
+	-- 		event = "EMOTE_SENT",
+	-- 		conditions = {
+	-- 			emoteType = "cheer",
+	-- 			targetName = "Barnes"
+	-- 		}
+	-- 	}
+	-- },
 	{
 		id = 2011,
 		name = "Wicked",
@@ -3935,23 +3935,23 @@ local ACHIEVEMENTS = {
 			conditions = { mechanicName = "Flame Wreath" }
 		}
 	},
-	{
-		id = 2021,
-		name = "Prince of the Tower",
-		description = "Defeat Prince Malchezaar without anyone dying to Shadow Nova or Infernal crashes",
-		points = 20,
-		category = 2,
-		subCategory = 20,
-		icon = 135831,
-		cadence = Enums.Cadence.AllTime,
-		startWeek = 4,
-		-- TODO: Implement fail tracking for deaths to Shadow Nova or Infernal crashes.
-		-- Requires combat log parsing to track death events and their sources.
-		trigger = {
-			event = "DUNGEON_BOSS_KILLED",
-			conditions = { bossName = "Prince Malchezaar" }
-		}
-	},
+	-- {
+	-- 	id = 2021,
+	-- 	name = "Prince of the Tower",
+	-- 	description = "Defeat Prince Malchezaar without anyone dying to Shadow Nova or Infernal crashes",
+	-- 	points = 20,
+	-- 	category = 2,
+	-- 	subCategory = 20,
+	-- 	icon = 135831,
+	-- 	cadence = Enums.Cadence.AllTime,
+	-- 	startWeek = 4,
+	-- 	-- TODO: Implement fail tracking for deaths to Shadow Nova or Infernal crashes.
+	-- 	-- Requires combat log parsing to track death events and their sources.
+	-- 	trigger = {
+	-- 		event = "DUNGEON_BOSS_KILLED",
+	-- 		conditions = { bossName = "Prince Malchezaar" }
+	-- 	}
+	-- },
 	{
 		id = 2022,
 		name = "Maiden Virtous",
@@ -4016,23 +4016,23 @@ local ACHIEVEMENTS = {
 			conditions = { instanceName = "Karazhan", duration = function(d) return d <= 5100 end }
 		}
 	},
-	{
-		id = 2026,
-		name = "DemonFall",
-		description = "Defeat Terestian Illhoof without killing any imps",
-		points = 20,
-		category = 2,
-		subCategory = 20,
-		icon = 136218,
-		cadence = Enums.Cadence.AllTime,
-		startWeek = 5,
-		-- TODO: Implement fail tracking for imp kills during encounter.
-		-- Requires combat log parsing to track creature kills and identify imp deaths.
-		trigger = {
-			event = "DUNGEON_BOSS_KILLED",
-			conditions = { bossName = "Terestian Illhoof" }
-		}
-	},
+	-- {
+	-- 	id = 2026,
+	-- 	name = "DemonFall",
+	-- 	description = "Defeat Terestian Illhoof without killing any imps",
+	-- 	points = 20,
+	-- 	category = 2,
+	-- 	subCategory = 20,
+	-- 	icon = 136218,
+	-- 	cadence = Enums.Cadence.AllTime,
+	-- 	startWeek = 5,
+	-- 	-- TODO: Implement fail tracking for imp kills during encounter.
+	-- 	-- Requires combat log parsing to track creature kills and identify imp deaths.
+	-- 	trigger = {
+	-- 		event = "DUNGEON_BOSS_KILLED",
+	-- 		conditions = { bossName = "Terestian Illhoof" }
+	-- 	}
+	-- },
 
 	-- Tier 4 (SubCategory 21)
 	{
