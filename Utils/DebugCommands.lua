@@ -34,6 +34,7 @@ function debugCommands:GetCommands()
         ["fire"] = self.OnFireEventCommand,
         ["week"] = self.OnSetWeekCommand,
         ["reset"] = self.OnResetProgressCommand,
+        ["resetid"] = self.OnResetIdCommand,
         ["inspect"] = self.OnInspectCommand,
 
         -- Achievement manipulation
@@ -129,6 +130,7 @@ function debugCommands:PrintDebugHelp()
     addon:Print("|cffffffff/reckoning fire <event> [args]|r - Fire test event")
     addon:Print("|cffffffff/reckoning week [num]|r - Get/set current week")
     addon:Print("|cffffffff/reckoning reset|r - Reset all progress")
+    addon:Print("|cffffffff/reckoning resetid <id>|r - Reset a specific achievement")
     addon:Print("")
     addon:Print("=== Database Commands ===")
     addon:Print("|cffffffff/reckoning save|r - Force save progress now")
@@ -237,6 +239,25 @@ function debugCommands:OnResetProgressCommand(args)
 
         addon:Print("|cffff0000All achievement progress has been reset!|r")
     end
+end
+
+function debugCommands:OnResetIdCommand(args)
+    local addon = Private.Addon
+    local engine = Private.AchievementEngine
+
+    if not args or #args == 0 then
+        addon:Print("Usage: /reckoning resetid <achievement_id>")
+        addon:Print("Example: /reckoning resetid 5010")
+        return
+    end
+
+    local achievementId = tonumber(args[1])
+    if not achievementId then
+        addon:Print("Invalid achievement ID")
+        return
+    end
+
+    engine:DebugReset(achievementId)
 end
 
 function debugCommands:CountTable(tbl)

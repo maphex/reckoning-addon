@@ -406,8 +406,9 @@ end
 ---@return number weekNumber
 function databaseUtils:GetCurrentWeek()
     -- Calculate weeks since TBC Anniversary launch (February 3, 2026)
-    -- Week 1 starts on launch day
-    local TBC_ANNIVERSARY_EPOCH = 1770076800 -- Unix timestamp for Feb 3, 2026 00:00:00 UTC
+    -- Week 1 starts on launch day (Tuesday) at server reset time
+    -- Weekly resets happen every Tuesday at 8:00 AM MST (server time)
+    local TBC_ANNIVERSARY_EPOCH = 1770130800 -- Unix timestamp for Feb 3, 2026 08:00:00 MST (15:00:00 UTC)
     local WEEK_SECONDS = 604800 -- 7 days in seconds
 
     local now = time()
