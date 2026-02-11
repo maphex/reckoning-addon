@@ -1399,17 +1399,19 @@ end
 function eventBridge:HandleLootMessage(message)
     if not message then return end
 
-    -- Check for Badge of Justice
-    if message:find("Badge of Justice") then
-        -- Track total badges (stored in state)
-        self.badgeCount = (self.badgeCount or 0) + 1
+    -- Check for Badge of Justice (player only)
+    if message:find("^You receive loot:") or message:find("^You receive item:") then
+        if message:find("Badge of Justice") then
+            -- Track total badges (stored in state)
+            self.badgeCount = (self.badgeCount or 0) + 1
 
-        self:Fire("BADGE_EARNED", {
-            badgeType = "Badge of Justice",
-            count = 1,
-            totalCount = self.badgeCount,
-            source = self.dungeonState.encounterActive and Enums.BadgeSource.Boss or Enums.BadgeSource.Quest,
-        })
+            self:Fire("BADGE_EARNED", {
+                badgeType = "Badge of Justice",
+                count = 1,
+                totalCount = self.badgeCount,
+                source = self.dungeonState.encounterActive and Enums.BadgeSource.Boss or Enums.BadgeSource.Quest,
+            })
+        end
     end
 
     -- Parse loot message for item (locale-safe)
@@ -2325,3 +2327,4 @@ function eventBridge:CheckLootRollWin(message)
         end
     end
 end
+
