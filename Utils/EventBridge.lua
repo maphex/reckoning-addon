@@ -525,7 +525,7 @@ end
 
 function eventBridge:UpdateInstanceState()
     local inInstance, instanceType = IsInInstance()
-    local instanceName, _, difficultyIndex, _, _, _, _, instanceId = GetInstanceInfo()
+    local instanceName, instanceTypeFromInfo, difficultyIndex, difficultyName, _, _, _, instanceId = GetInstanceInfo()
 
     local wasInInstance = self.dungeonState.inInstance
     local oldInstanceId = self.dungeonState.instanceId
@@ -538,7 +538,7 @@ function eventBridge:UpdateInstanceState()
             -- New instance entered - reset state
             self.dungeonState.instanceName = instanceName
             self.dungeonState.instanceId = instanceId
-            self.dungeonState.difficulty = difficultyIndex == 2 and Enums.Difficulty.Heroic or Enums.Difficulty.Normal
+            self.dungeonState.difficulty = self:GetInstanceDifficulty(instanceType, instanceTypeFromInfo, difficultyIndex, difficultyName)
             self.dungeonState.startTime = GetTime()
             self.dungeonState.totalDeaths = 0
             self.dungeonState.wipes = 0
@@ -610,6 +610,36 @@ function eventBridge:UpdateInstanceState()
             self:CheckArenaMatchEnd()
         end
     end
+end
+
+---@param instanceType string|nil
+---@param instanceTypeFromInfo string|nil
+---@param difficultyIndex number|nil
+---@param difficultyName string|nil
+---@return number
+function eventBridge:GetInstanceDifficulty(instanceType, instanceTypeFromInfo, difficultyIndex, difficultyName)
+    local isParty = (instanceType == "party") or (instanceTypeFromInfo == "party")
+    if not isParty then
+        return Enums.Difficulty.Normal
+    end
+
+    local isHeroic = (difficultyIndex == 2)
+
+    if not isHeroic and type(difficultyName) == "string" then
+        local lower = difficultyName:lower()
+        if lower:find("heroic", 1, true) then
+            isHeroic = true
+        end
+    end
+
+    if not isHeroic and GetDungeonDifficulty then
+        local difficulty = GetDungeonDifficulty()
+        if difficulty == 2 then
+            isHeroic = true
+        end
+    end
+
+    return isHeroic and Enums.Difficulty.Heroic or Enums.Difficulty.Normal
 end
 
 ---Count how many bosses are in a given instance
