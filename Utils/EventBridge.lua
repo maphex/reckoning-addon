@@ -1177,13 +1177,13 @@ local GATHERING_SPELLS = {
 -- TBC Key item IDs with key type
 local TBC_KEYS = {
     -- Heroic Keys (Enums.KeyType.Heroic = 1)
-    [30622] = { name = "Flamewrought Key", keyType = 1 },      -- Hellfire Citadel Heroic
+    [30637] = { name = "Flamewrought Key", keyType = 1 },      -- Hellfire Citadel Heroic
     [30623] = { name = "Reservoir Key", keyType = 1 },         -- Coilfang Reservoir Heroic
     [30633] = { name = "Auchenai Key", keyType = 1 },          -- Auchindoun Heroic
     [30634] = { name = "Warpforged Key", keyType = 1 },        -- Tempest Keep Heroic
     [30635] = { name = "Key of Time", keyType = 1 },           -- Caverns of Time Heroic
     -- Attunement Keys (Enums.KeyType.Attunement = 2)
-    [30637] = { name = "Shattered Halls Key", keyType = 2 },   -- Shattered Halls
+    [28395] = { name = "Shattered Halls Key", keyType = 2 },   -- Shattered Halls
     [31084] = { name = "Key to the Arcatraz", keyType = 2 },   -- Arcatraz
     [24490] = { name = "The Master's Key", keyType = 2 },      -- Karazhan
     [32649] = { name = "Medallion of Karabor", keyType = 2 },  -- Black Temple
