@@ -1271,7 +1271,7 @@ local ACHIEVEMENTS = {
 			event = "KEY_OBTAINED",
 			conditions = { keyType = 1 }
 		},
-		progress = { type = "count", required = 3 }
+		progress = { type = "criteria", required = 3, criteriaKey = "keyId" }
 	},
 	{
 		id = 5009,
@@ -1299,7 +1299,7 @@ local ACHIEVEMENTS = {
 			event = "KEY_OBTAINED",
 			conditions = { keyType = 1 }
 		},
-		progress = { type = "count", required = 5 }
+		progress = { type = "criteria", required = 5, criteriaKey = "keyId" }
 	},
 	{
 		id = 5011,
@@ -2302,7 +2302,7 @@ local ACHIEVEMENTS = {
 	{
 		id = 4013,
 		name = "In the Bag",
-		description = "Craft 120 Netherweave or Heavy Netherweave Bags",
+		description = "Craft 120 Netherweave Bags or Imbued Netherweave Bags",
 		points = 30,
 		category = 4,
 		subCategory = 40,
@@ -2312,7 +2312,7 @@ local ACHIEVEMENTS = {
 			event = "ITEM_CRAFTED",
 			conditions = {
 				profession = Enums.Profession.Tailoring,
-				itemName = { "Netherweave Bag", "Heavy Netherweave Bag" }
+				itemName = { "Netherweave Bag", "Imbued Netherweave Bag" }
 			}
 		},
 		progress = { type = "count", required = 120 }
@@ -3101,7 +3101,7 @@ local ACHIEVEMENTS = {
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "PVP_OBJECTIVE_CAPTURED",
-			conditions = { location = "Alterac Valley", objectiveType = "tower_defense" }
+			conditions = { location = "Alterac Valley", objectiveType = Enums.ObjectiveType.Tower }
 		}
 	},
 	{
