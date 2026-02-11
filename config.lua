@@ -3103,7 +3103,7 @@ local ACHIEVEMENTS = {
 		cadence = Enums.Cadence.AllTime,
 		trigger = {
 			event = "PVP_OBJECTIVE_CAPTURED",
-			conditions = { location = "Alterac Valley", objectiveType = "tower_defense" }
+			conditions = { location = "Alterac Valley", objectiveType = Enums.ObjectiveType.Tower }
 		}
 	},
 	{
