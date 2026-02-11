@@ -1271,7 +1271,7 @@ local ACHIEVEMENTS = {
 			event = "KEY_OBTAINED",
 			conditions = { keyType = 1 }
 		},
-		progress = { type = "count", required = 3 }
+		progress = { type = "criteria", required = 3, criteriaKey = "keyId" }
 	},
 	{
 		id = 5009,
@@ -1299,7 +1299,7 @@ local ACHIEVEMENTS = {
 			event = "KEY_OBTAINED",
 			conditions = { keyType = 1 }
 		},
-		progress = { type = "count", required = 5 }
+		progress = { type = "criteria", required = 5, criteriaKey = "keyId" }
 	},
 	{
 		id = 5011,
